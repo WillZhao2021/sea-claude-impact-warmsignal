@@ -222,7 +222,7 @@ function assess(
         factors.fit = fit;
         const industryLabel =
           0.6 * semanticFit > (ind ? 0.5 : 0)
-            ? `${semantic!.matched.label} (similar to your target industry, ${Math.round(semanticFit * 100)}% match)`
+            ? `${semanticFit >= 0.85 ? "Strong" : "Likely"} match for your target industry: ${semantic!.matched.label}`
             : ind;
         reasons.push({
           kind: "fit",
