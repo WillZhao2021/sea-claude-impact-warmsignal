@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Globe, Info, Sparkles, Upload, Wand2 } from "lucide-react";
 import { enrichAllAction, importCsvAction, loadDemoAction, removeDemoAction } from "@/app/actions";
+import { AttributeChips } from "@/components/enrichment-view";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, PageHeader, SignalBars } from "@/components/ui";
 import { requireCtx } from "@/lib/auth";
@@ -103,6 +104,11 @@ export default async function ContactsPage() {
                           {c.name}
                         </Link>
                         <div className="truncate text-slate-500">{[c.title, c.company].filter(Boolean).join(", ")}</div>
+                        {c.enrichment?.status === "matched" && !!c.enrichment.attributes?.length && (
+                          <div className="mt-1">
+                            <AttributeChips attributes={c.enrichment.attributes} max={3} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

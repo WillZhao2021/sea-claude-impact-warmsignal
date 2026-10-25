@@ -17,9 +17,34 @@ export type Contact = {
 
 export type SourcedItem = { text: string; source_url: string; date: string | null };
 
+export type AttributeKind = "expertise" | "sector" | "location" | "stage" | "role" | "affiliation" | "interest";
+
+/** A sourced tag about a contact, extracted from the public web. */
+export type Attribute = { kind: AttributeKind; label: string; source_url: string };
+
+/**
+ * How one contact fits the rest of the network, computed when they are enriched.
+ * `intros` rest on recorded needs and are also saved as opportunities; `ideas` rest only on
+ * public-web info and are never saved as opportunities.
+ */
+export type NetworkMap = {
+  mapped_at: string;
+  intros: {
+    direction: "gives" | "receives";
+    other_contact_id: string;
+    other_name: string;
+    need: string;
+    why: string;
+    give_value: number;
+    appropriate: boolean;
+  }[];
+  ideas: { text: string; other_contact_id: string | null; other_name: string | null }[];
+  overlaps: { label: string; contact_ids: string[]; names: string[] }[];
+};
+
 /** Public-web context from Tavily + Claude. Unverified; never a stated need. */
 export type Enrichment =
-  | { status: "no_confident_match"; identity_notes: string }
+  | { status: "no_confident_match"; identity_notes: string; network?: NetworkMap }
   | {
       status: "matched";
       identity_confidence: "high" | "medium";
@@ -28,6 +53,8 @@ export type Enrichment =
       recent_signals: (SourcedItem & { kind: string })[];
       possible_offers: SourcedItem[];
       sources: { title: string; url: string }[];
+      attributes?: Attribute[];
+      network?: NetworkMap;
     };
 
 export type Interaction = {

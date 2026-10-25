@@ -2,7 +2,7 @@ import { tavily, type TavilySearchResponse } from "@tavily/core";
 import { z } from "zod";
 import { structuredCall, structuredStream } from "./claude";
 import { must, type Ctx } from "./supabase";
-import type { Contact, Enrichment } from "./types";
+import type { Attribute, Contact, Enrichment } from "./types";
 
 // Automatic contact enrichment: Tavily web search -> Claude identity check + summary.
 // Public-web facts are stored separately from Alonso's notes and labeled unverified.
@@ -14,6 +14,15 @@ const EnrichmentSchema = z.object({
     .describe("How sure you are the results are about THIS person/company, not a namesake"),
   identity_notes: z.string().describe("One short sentence explaining the identity judgment"),
   summary: z.string().describe("1-2 sentences on who they are and what their company does. Empty if not confident."),
+  attributes: z
+    .array(
+      z.object({
+        kind: z.enum(["expertise", "sector", "location", "stage", "role", "affiliation", "interest"]),
+        label: z.string().describe("1-4 words, Title Case, e.g. 'B2B SaaS', 'Seed Investing', 'San Francisco'"),
+        source_url: z.string(),
+      }),
+    )
+    .describe("Up to 12 tags that index this person for matching: expertise, sectors, locations, company/investment stage, roles held, affiliations (boards, communities, alma maters), interests"),
   recent_signals: z
     .array(
       z.object({
@@ -32,7 +41,8 @@ const EnrichmentSchema = z.object({
 const SYSTEM = `You enrich a contact record for a relationship-intelligence tool using web search results. Accuracy matters more than coverage: attaching a stranger's news to a contact would embarrass the user.
 
 - First decide whether the results are about this exact person/company. Same name alone is not enough; company and role should line up. If unsure, use "low" or "none" and leave everything else empty.
-- Only state what the sources say. Every signal and offer needs a source_url copied from the results.
+- Only state what the sources say. Every signal, offer and attribute needs a source_url copied from the results.
+- Attributes are an index for matching people across a network: prefer specific, reusable labels ("Healthcare AI", "Series A", "Enterprise Sales") over vague ones ("Business", "Leadership").
 - Be terse.`;
 
 let client: ReturnType<typeof tavily> | null = null;
@@ -42,51 +52,89 @@ function search() {
   return (client ??= tavily({ apiKey }));
 }
 
+export type SearchGroup = { id: string; label: string; query: string };
+type SearchResult = TavilySearchResponse["results"][number];
+
 /** Progress reported while enriching, for live UIs. `partial` is Claude's unfinished output: display only. */
 export type EnrichEvent =
-  | { type: "searching"; queries: { group: "person" | "company"; query: string }[] }
-  | { type: "sources"; group: "person" | "company"; sources: { title: string; url: string; date: string | null }[] }
+  | { type: "searching"; queries: SearchGroup[] }
+  | { type: "sources"; group: string; sources: { title: string; url: string; date: string | null }[] }
   | { type: "reading"; count: number }
   | { type: "partial"; data: unknown }
   | { type: "verifying" }
   | { type: "result"; enrichment: Enrichment };
 
+/**
+ * "basic" (default): 2 searches, for bulk and background enrichment.
+ * "deep": 5 searches (talks, background, funding/hiring too), for an on-demand single contact.
+ */
+export type EnrichDepth = "basic" | "deep";
+
+function searchPlan(contact: Contact, depth: EnrichDepth): (SearchGroup & { options: Record<string, unknown> })[] {
+  const first = contact.name.split(" ")[0];
+  const co = contact.company;
+  const news = { searchDepth: "basic", topic: "news", timeRange: "year", maxResults: 5 };
+  const plan = [
+    {
+      id: "person",
+      label: `About ${first}`,
+      query: `"${contact.name}" ${contact.title ?? ""} ${co ?? ""}`.trim(),
+      options: { searchDepth: "basic", maxResults: 5 },
+    },
+    ...(co ? [{ id: "company", label: `${co} news`, query: `"${co}" ${contact.industry ?? ""} news`, options: news }] : []),
+  ];
+  if (depth === "basic") return plan;
+  return [
+    ...plan,
+    {
+      id: "talks",
+      label: "Talks & interviews",
+      query: `"${contact.name}" interview OR podcast OR keynote OR panel`,
+      options: { searchDepth: "basic", maxResults: 4 },
+    },
+    {
+      id: "background",
+      label: "Background",
+      query: `"${contact.name}" ${co ?? ""} career background board advisor`.trim(),
+      options: { searchDepth: "basic", maxResults: 4 },
+    },
+    ...(co
+      ? [{ id: "growth", label: `${co} funding & hiring`, query: `"${co}" raises OR funding OR hiring OR acquires`, options: news }]
+      : []),
+  ];
+}
+
 export async function enrichContact(
   contact: Contact,
-  opts: { onEvent?: (e: EnrichEvent) => void; signal?: AbortSignal } = {},
+  opts: { onEvent?: (e: EnrichEvent) => void; signal?: AbortSignal; depth?: EnrichDepth } = {},
 ): Promise<Enrichment> {
   const emit = opts.onEvent ?? (() => {});
   const t = search();
-  const personQuery = `"${contact.name}" ${contact.title ?? ""} ${contact.company ?? ""}`.trim();
-  const companyQuery = contact.company ? `"${contact.company}" ${contact.industry ?? ""} news` : null;
-  emit({
-    type: "searching",
-    queries: [
-      { group: "person", query: personQuery },
-      ...(companyQuery ? [{ group: "company" as const, query: companyQuery }] : []),
-    ],
-  });
-  // Report each search as soon as it returns, rather than waiting for both.
-  const reported = (group: "person" | "company") => (res: Pick<TavilySearchResponse, "results">) => {
-    emit({
-      type: "sources",
-      group,
-      sources: res.results.map((r) => ({ title: r.title, url: r.url, date: r.publishedDate || null })),
-    });
-    return res;
-  };
-  const [person, company] = await Promise.all([
-    t.search(personQuery, { searchDepth: "basic", maxResults: 5 }).then(reported("person")),
-    companyQuery
-      ? t
-          .search(companyQuery, { searchDepth: "basic", topic: "news", timeRange: "year", maxResults: 5 })
-          .then(reported("company"))
-      : Promise.resolve({ results: [] as TavilySearchResponse["results"] }),
-  ]);
-
-  const results = [...person.results, ...company.results].filter(
-    (r, i, all) => all.findIndex((x) => x.url === r.url) === i,
+  const plan = searchPlan(contact, opts.depth ?? "basic");
+  emit({ type: "searching", queries: plan.map(({ id, label, query }) => ({ id, label, query })) });
+  // Report each search as soon as it returns, rather than waiting for all of them.
+  const batches = await Promise.all(
+    plan.map((g) =>
+      t
+        .search(g.query, g.options)
+        .then((res) => res.results)
+        .catch((e): SearchResult[] => {
+          // One failed search shouldn't sink the rest.
+          console.error(`Search failed (${g.id}):`, e);
+          return [];
+        })
+        .then((results) => {
+          emit({
+            type: "sources",
+            group: g.id,
+            sources: results.map((r) => ({ title: r.title, url: r.url, date: r.publishedDate || null })),
+          });
+          return results;
+        }),
+    ),
   );
+
+  const results = batches.flat().filter((r, i, all) => all.findIndex((x) => x.url === r.url) === i);
   if (results.length === 0) {
     const none: Enrichment = { status: "no_confident_match", identity_notes: "No web results found." };
     emit({ type: "result", enrichment: none });
@@ -100,7 +148,7 @@ export async function enrichContact(
 
 <search_results>
 ${results
-  .map((r) => `<result url="${r.url}" date="${r.publishedDate ?? ""}">\n${r.title}\n${r.content.slice(0, 1200)}\n</result>`)
+  .map((r) => `<result url="${r.url}" date="${r.publishedDate ?? ""}">\n${r.title}\n${r.content.slice(0, results.length > 12 ? 800 : 1200)}\n</result>`)
   .join("\n")}
 </search_results>`,
     schema: EnrichmentSchema,
@@ -121,6 +169,7 @@ ${results
   const cited = <T extends { source_url: string }>(xs: T[]) => xs.filter((x) => urls.has(x.source_url));
   const recent_signals = cited(out.recent_signals);
   const possible_offers = cited(out.possible_offers);
+  const attributes = dedupeAttributes(cited(out.attributes));
   const usedUrls = new Set([...recent_signals, ...possible_offers].map((x) => x.source_url));
   const enrichment: Enrichment = {
     status: "matched",
@@ -129,7 +178,8 @@ ${results
     summary: out.summary,
     recent_signals,
     possible_offers,
-    sources: results.filter((r) => usedUrls.has(r.url) || usedUrls.size === 0).slice(0, 5).map((r) => ({ title: r.title, url: r.url })),
+    attributes,
+    sources: results.filter((r) => usedUrls.has(r.url) || usedUrls.size === 0).slice(0, 8).map((r) => ({ title: r.title, url: r.url })),
   };
   emit({ type: "result", enrichment });
   return enrichment;
@@ -176,10 +226,21 @@ export async function enrichPending(
   return ids.length;
 }
 
+function dedupeAttributes(attrs: Attribute[]): Attribute[] {
+  const seen = new Set<string>();
+  return attrs.filter((a) => {
+    const key = a.label.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 12);
+}
+
 /** One line for prompts. Clearly labeled as unverified public info. */
 export function enrichmentLine(e: Enrichment | null): string | null {
   if (!e || e.status !== "matched") return null;
   const parts = [e.summary, ...e.recent_signals.map((s) => `${s.date ?? "recent"}: ${s.text}`)];
   if (e.possible_offers.length) parts.push(`can offer: ${e.possible_offers.map((o) => o.text).join("; ")}`);
+  if (e.attributes?.length) parts.push(`tags: ${e.attributes.map((a) => a.label).join(", ")}`);
   return `public web (unverified, ${e.identity_confidence} identity confidence): ${parts.join(" | ")}`;
 }

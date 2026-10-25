@@ -9,7 +9,7 @@ import type { Contact, Signal } from "./types";
 // candidates for a batch of needs; code then validates ids and stores the assessments.
 // Final priority scores are computed deterministically in scoring.ts.
 
-const MatchSchema = z.object({
+export const MatchSchema = z.object({
   need_ref: z.string().describe("The N# reference of the need"),
   proposed_ref: z.string().describe("The P# reference of the person Alonso would introduce"),
   offer_ref: z.string().nullable().describe("The O# reference of the matching recorded offer, or null if the match is based only on their profile"),
@@ -43,16 +43,22 @@ Rules:
 - "public web" lines are unverified context from web search. They can support why_now or a profile_inference, but never count as a stated need or stated offer.
 - Write tersely: Alonso reads each recommendation in under 30 seconds. Respect the word limits.`;
 
-function contactLine(ref: string, c: Contact) {
+export function contactLine(ref: string, c: Contact) {
   const pref = c.introduction_preferences ? ` | intro preferences: ${c.introduction_preferences}` : "";
   return `${ref}: ${c.name}, ${c.title ?? "?"} at ${c.company ?? "?"} (${c.industry ?? "?"}), relationship strength ${c.relationship_strength}/5${pref}`;
 }
 
-function signalLine(ref: string, s: Signal) {
+export function signalLine(ref: string, s: Signal) {
   const flags = [s.is_inferred ? "INFERRED" : "stated", `confidence ${s.confidence}`, s.time_sensitive ? "time-sensitive" : null]
     .filter(Boolean)
     .join(", ");
   return `${ref} [${s.category}] ${s.description} (${flags}) - evidence: "${s.supporting_text}"`;
+}
+
+/** The matching rubric and rules, for other callers that assess introductions (e.g. network mapping). */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- per-user context (profile) will use ctx
+export async function matchSystem(_ctx: Ctx): Promise<string> {
+  return SYSTEM;
 }
 
 export async function findIntroductions(ctx: Ctx): Promise<{ needs: number; matches: number }> {

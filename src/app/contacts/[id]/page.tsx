@@ -2,11 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
-  BadgeCheck,
   Building2,
   CalendarDays,
   Clock,
-  ExternalLink,
   HandHeart,
   Hand,
   MessageSquareText,
@@ -15,12 +13,13 @@ import {
 } from "lucide-react";
 import { addNoteAction } from "@/app/actions";
 import { EnrichPanel } from "@/components/enrich-panel";
+import { AttributeChips, EnrichmentView } from "@/components/enrichment-view";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, input, SignalBars } from "@/components/ui";
 import { defaultEvalDate } from "@/lib/briefing";
 import { requireCtx } from "@/lib/auth";
 import { must } from "@/lib/supabase";
-import type { Contact, Enrichment, Interaction, Signal } from "@/lib/types";
+import type { Contact, Interaction, Signal } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -77,6 +76,9 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
               <Clock className="size-3" /> Last spoke {formatDate(contact.last_interaction_date)}
             </Chip>
           </div>
+          {contact.enrichment?.status === "matched" && !!contact.enrichment.attributes?.length && (
+            <AttributeChips attributes={contact.enrichment.attributes} />
+          )}
         </div>
         {contact.introduction_preferences && (
           <div className="flex w-full items-start gap-2.5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-inset ring-amber-200/70">
@@ -88,7 +90,7 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
         )}
       </section>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
           <form action={addNoteAction} className={`${card} space-y-3 p-6`}>
             <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
@@ -193,61 +195,9 @@ function SignalList({ title, tone, items }: { title: string; tone: "violet" | "s
 }
 
 function WebProfile({ contact }: { contact: Contact }) {
-  const e: Enrichment | null = contact.enrichment;
   return (
-    <EnrichPanel contactId={contact.id} name={contact.name} company={contact.company} enriched={!!contact.enriched_at}>
-      {!e && (
-        <p className="mt-4 text-slate-500">
-          Not enriched yet. New contacts are enriched in the background; click <span className="font-medium">Enrich now</span>{" "}
-          to watch it happen live.
-        </p>
-      )}
-      {e?.status === "no_confident_match" && (
-        <p className="mt-4 text-slate-500">No confident match found online. {e.identity_notes}</p>
-      )}
-      {e?.status === "matched" && (
-        <div className="mt-4 space-y-4">
-          <p className="leading-relaxed text-slate-700">{e.summary}</p>
-          <p className="flex items-start gap-1.5 text-xs text-slate-500">
-            <BadgeCheck className="mt-px size-3.5 shrink-0 text-emerald-500" />
-            {e.identity_confidence} confidence: {e.identity_notes}
-          </p>
-          {e.recent_signals.length > 0 && (
-            <ul className="space-y-2 border-t border-slate-100 pt-4">
-              {e.recent_signals.map((x) => (
-                <li key={x.source_url + x.text} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Chip tone="sky">{x.kind.replace("_", " ")}</Chip>
-                    {x.date && <span className="text-xs text-slate-400">{x.date}</span>}
-                    <a
-                      href={x.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-auto text-slate-400 hover:text-ink-600"
-                      title="Source"
-                    >
-                      <ExternalLink className="size-3.5" />
-                    </a>
-                  </div>
-                  <p className="text-slate-700">{x.text}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-          {e.possible_offers.length > 0 && (
-            <div className="border-t border-slate-100 pt-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Could offer</h3>
-              <ul className="mt-2 space-y-1 text-slate-700">
-                {e.possible_offers.map((o) => (
-                  <li key={o.text} className="flex gap-2">
-                    <HandHeart className="mt-0.5 size-3.5 shrink-0 text-sky-500" /> {o.text}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+    <EnrichPanel contactId={contact.id} name={contact.name} enriched={!!contact.enriched_at}>
+      <EnrichmentView enrichment={contact.enrichment} name={contact.name} />
     </EnrichPanel>
   );
 }

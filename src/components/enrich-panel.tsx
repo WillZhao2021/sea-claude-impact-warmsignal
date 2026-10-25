@@ -1,27 +1,49 @@
 "use client";
 
-import { Check, CircleAlert, Globe, LoaderCircle, RefreshCw, Search, ShieldCheck, Sparkles } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowRight,
+  Check,
+  CircleAlert,
+  Globe,
+  LoaderCircle,
+  Network,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import type { EnrichEvent } from "@/lib/enrich";
+import type { EnrichEvent, SearchGroup } from "@/lib/enrich";
+import type { NetworkEvent } from "@/lib/network";
+import type { NetworkMap } from "@/lib/types";
+import { AttributeChips, IdeaList, IntroList, OverlapChips, Section, SignalList } from "./enrichment-view";
 import { btn, Chip } from "./ui";
 
-type Frame = EnrichEvent | { type: "saved" } | { type: "error"; message: string };
+type Frame = EnrichEvent | NetworkEvent | { type: "saved"; intros_saved: number; intros_added: number } | { type: "error"; message: string };
 type Source = { title: string; url: string; date: string | null };
-type Partial = {
+type ProfilePartial = {
   identity_confidence?: string;
   identity_notes?: string;
   summary?: string;
-  recent_signals?: { kind?: string; text?: string }[];
+  attributes?: { kind?: string; label?: string }[];
+  recent_signals?: { kind?: string; text?: string; date?: string | null }[];
   possible_offers?: { text?: string }[];
 };
+const PHASES = ["searching", "reading", "verifying", "mapping", "done"] as const;
 type Run = {
-  phase: "searching" | "reading" | "verifying" | "done" | "error";
-  queries: { group: string; query: string }[];
+  phase: (typeof PHASES)[number] | "error";
+  queries: SearchGroup[];
   sources: Record<string, Source[]>;
   readCount: number;
-  partial: Partial;
+  profile: ProfilePartial;
   outcome: "matched" | "no_confident_match" | null;
+  scope: { contacts: number; needs: number } | null;
+  overlaps: NetworkMap["overlaps"];
+  network: Pick<NetworkMap, "intros" | "ideas">;
+  introsSaved: number | null;
+  introsAdded: number;
   error: string | null;
   started: number;
 };
@@ -31,26 +53,29 @@ const fresh = (): Run => ({
   queries: [],
   sources: {},
   readCount: 0,
-  partial: {},
+  profile: {},
   outcome: null,
+  scope: null,
+  overlaps: [],
+  network: { intros: [], ideas: [] },
+  introsSaved: null,
+  introsAdded: 0,
   error: null,
   started: Date.now(),
 });
 
 /**
  * Web profile panel. Idle: shows the saved profile (children, server-rendered).
- * Running: streams the enrichment live from /api/contacts/[id]/enrich (SSE over fetch).
+ * Running: streams enrichment and network mapping live from /api/contacts/[id]/enrich (SSE over fetch).
  */
 export function EnrichPanel({
   contactId,
   name,
-  company,
   enriched,
   children,
 }: {
   contactId: string;
   name: string;
-  company: string | null;
   enriched: boolean;
   children: React.ReactNode;
 }) {
@@ -105,18 +130,23 @@ export function EnrichPanel({
         case "reading":
           return update((r) => ({ ...r, phase: "reading", readCount: f.count }));
         case "partial":
-          return update((r) => ({ ...r, partial: (f.data ?? {}) as Partial }));
+          return update((r) => ({ ...r, profile: (f.data ?? {}) as ProfilePartial }));
         case "verifying":
           return update((r) => ({ ...r, phase: "verifying" }));
         case "result":
           return update((r) => ({ ...r, outcome: f.enrichment.status }));
+        case "mapping":
+          return update((r) => ({ ...r, phase: "mapping", scope: { contacts: f.contacts, needs: f.needs } }));
+        case "overlaps":
+          return update((r) => ({ ...r, overlaps: f.overlaps }));
+        case "network_partial":
+          return update((r) => ({ ...r, network: f.data }));
+        case "network":
+          return update((r) => ({ ...r, network: f.network, overlaps: f.network.overlaps }));
         case "saved":
-          update((r) => ({ ...r, phase: "done" }));
-          // Let the finished state register, then swap in the saved, server-rendered profile.
-          setTimeout(() => {
-            router.refresh();
-            setRun(null);
-          }, 1800);
+          update((r) => ({ ...r, phase: "done", introsSaved: f.intros_saved, introsAdded: f.intros_added }));
+          // Refresh server data so the saved profile and briefing reflect this run.
+          router.refresh();
           return;
         case "error":
           return fail(f.message);
@@ -127,13 +157,13 @@ export function EnrichPanel({
   const running = run != null && run.phase !== "done" && run.phase !== "error";
 
   return (
-    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 text-sm shadow-card lg:sticky lg:top-6">
+    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 text-sm shadow-card">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="flex items-center gap-2 font-bold tracking-tight">
-            <Globe className="size-4 text-ink-500" /> Public web profile
+            <Globe className="size-4 text-ink-500" /> Profile &amp; network
           </h2>
-          <p className="text-xs text-slate-400">via Tavily + Claude · unverified</p>
+          <p className="text-xs text-slate-400">Public web via Tavily + Claude · unverified</p>
         </div>
         <button
           type="button"
@@ -145,115 +175,170 @@ export function EnrichPanel({
           {running ? "Enriching…" : enriched ? "Refresh" : "Enrich now"}
         </button>
       </div>
-      {run ? <LiveRun key={run.started} run={run} name={name} company={company} onRetry={start} /> : children}
+      {run ? (
+        <LiveRun key={run.started} run={run} name={name} onRetry={start} onClose={() => setRun(null)} />
+      ) : (
+        children
+      )}
     </section>
   );
 }
 
-function LiveRun({ run, name, company, onRetry }: { run: Run; name: string; company: string | null; onRetry: () => void }) {
+function LiveRun({ run, name, onRetry, onClose }: { run: Run; name: string; onRetry: () => void; onClose: () => void }) {
+  const first = name.split(" ")[0];
   const elapsed = useElapsed(run.started, run.phase === "done" || run.phase === "error");
-  const order = ["searching", "reading", "verifying", "done"] as const;
-  const at = run.phase === "error" ? -1 : order.indexOf(run.phase);
-  const state = (i: number) => (at > i || run.phase === "done" ? "done" : at === i ? "active" : "waiting");
+  const at = run.phase === "error" ? -1 : PHASES.indexOf(run.phase);
+  const state = (i: number) => (run.phase === "done" || at > i ? "done" : at === i ? "active" : "waiting");
+  const searchesDone = Object.keys(run.sources).length;
   const totalSources = Object.values(run.sources).reduce((n, s) => n + s.length, 0);
-  const p = run.partial;
-  const signals = (p.recent_signals ?? []).filter((s) => s.text);
-  const offers = (p.possible_offers ?? []).filter((o) => o.text);
+  const p = run.profile;
   const weak = p.identity_confidence === "low" || p.identity_confidence === "none";
 
   return (
-    <div className="mt-4 space-y-1" aria-live="polite">
+    <div className="mt-4" aria-live="polite">
       <div className="mb-3 flex items-center justify-between text-xs">
-        <span className="font-medium text-ink-700">{run.phase === "done" ? "Finished" : run.phase === "error" ? "Stopped" : "Live"}</span>
+        <span className="font-medium text-ink-700">
+          {run.phase === "done" ? "Finished" : run.phase === "error" ? "Stopped" : "Live"}
+        </span>
         <span className="font-mono text-slate-400">{elapsed}s</span>
       </div>
 
-      <Step state={state(0)} icon={Search} title={totalSources ? `Found ${totalSources} web results` : "Searching the web"}>
-        <ul className="space-y-1">
-          {run.queries.map((q) => (
-            <li key={q.group} className="truncate font-mono text-[11px] text-slate-400">
-              {q.query}
-            </li>
-          ))}
-        </ul>
-        {(["person", "company"] as const).map(
-          (g) =>
-            run.sources[g] && (
-              <div key={g} className="mt-2">
-                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  {g === "person" ? `About ${name.split(" ")[0]}` : `${company ?? "Company"} news`}
+      <Step
+        state={state(0)}
+        icon={Search}
+        title={
+          run.queries.length && searchesDone === run.queries.length
+            ? `Ran ${run.queries.length} searches · ${totalSources} results`
+            : `Searching the web${run.queries.length ? ` (${searchesDone}/${run.queries.length})` : ""}`
+        }
+      >
+        <div className="space-y-2.5">
+          {run.queries.map((q) => {
+            const found = run.sources[q.id];
+            return (
+              <div key={q.id}>
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  {found ? <Check className="size-3 text-ink-500" /> : <LoaderCircle className="size-3 animate-spin" />}
+                  {q.label}
+                  {found && <span className="font-normal normal-case tracking-normal">· {found.length}</span>}
                 </div>
-                <ul className="space-y-1">
-                  {run.sources[g].length === 0 && <li className="text-xs text-slate-400">No results</li>}
-                  {run.sources[g].map((s, i) => (
-                    <li
-                      key={s.url}
-                      className="flex animate-rise items-center gap-2 text-xs"
-                      style={{ animationDelay: `${i * 60}ms` }}
-                    >
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
-                        {hostname(s.url)}
-                      </span>
-                      <span className="truncate text-slate-600">{s.title}</span>
-                    </li>
-                  ))}
-                </ul>
+                {found && found.length > 0 && at > 0 && (
+                  <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400">
+                    {[...new Set(found.map((s) => hostname(s.url)))].join(" · ")}
+                  </div>
+                )}
+                {found && found.length > 0 && at <= 0 && (
+                  <ul className="mt-1 space-y-1">
+                    {found.slice(0, 4).map((s, i) => (
+                      <li key={s.url} className="flex animate-rise items-center gap-2 text-xs" style={{ animationDelay: `${i * 50}ms` }}>
+                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+                          {hostname(s.url)}
+                        </span>
+                        <span className="truncate text-slate-600">{s.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            ),
-        )}
+            );
+          })}
+        </div>
       </Step>
 
       <Step
         state={state(1)}
         icon={Sparkles}
-        title={run.readCount ? `Claude is reading ${run.readCount} sources` : "Claude reads the sources"}
+        title={
+          run.outcome === "no_confident_match"
+            ? "No confident web match"
+            : run.readCount
+              ? `Claude is building the profile from ${run.readCount} sources`
+              : "Build the profile"
+        }
       >
-        {p.identity_confidence && (
-          <div className="flex animate-rise items-start gap-1.5 text-xs">
-            <Chip tone={weak ? "amber" : "emerald"}>
+        <div className="space-y-2">
+          {p.identity_confidence && (
+            <Chip tone={weak ? "amber" : "emerald"} className="animate-rise">
               {weak ? <CircleAlert className="size-3" /> : <ShieldCheck className="size-3" />}
-              {p.identity_confidence} confidence
+              {p.identity_confidence} identity confidence
             </Chip>
-          </div>
-        )}
-        {p.identity_notes && <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{p.identity_notes}</p>}
-        {p.summary && (
-          <p className="mt-2 leading-relaxed text-slate-700">
-            {p.summary}
-            {run.phase === "reading" && !signals.length && <Caret />}
-          </p>
-        )}
-        {signals.length > 0 && (
-          <ul className="mt-2 space-y-1.5">
-            {signals.map((s, i) => (
-              <li key={i} className="flex animate-rise items-start gap-2 text-xs text-slate-700">
-                {s.kind && <Chip tone="sky">{s.kind.replace("_", " ")}</Chip>}
-                <span className="pt-0.5">{s.text}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {offers.length > 0 && (
-          <p className="mt-2 animate-rise text-xs text-slate-600">
-            <span className="font-medium">Could offer:</span> {offers.map((o) => o.text).join("; ")}
-          </p>
-        )}
+          )}
+          {p.identity_notes && <p className="text-xs leading-relaxed text-slate-500">{p.identity_notes}</p>}
+          {p.summary && (
+            <p className="leading-relaxed text-slate-700">
+              {p.summary}
+              {run.phase === "reading" && !p.attributes?.length && <Caret />}
+            </p>
+          )}
+          {!!p.attributes?.length && <AttributeChips attributes={p.attributes as never} />}
+          {!!p.recent_signals?.length && <SignalList signals={p.recent_signals} />}
+          {!!p.possible_offers?.filter((o) => o.text).length && (
+            <p className="animate-rise text-xs text-slate-600">
+              <span className="font-medium">Could offer:</span>{" "}
+              {p.possible_offers.filter((o) => o.text).map((o) => o.text).join("; ")}
+            </p>
+          )}
+        </div>
       </Step>
 
       <Step state={state(2)} icon={ShieldCheck} title="Checking every claim has a source" />
 
       <Step
         state={state(3)}
+        icon={Network}
+        title={
+          run.scope
+            ? `Mapping against ${run.scope.contacts} people and ${run.scope.needs} recorded needs`
+            : "Map against your network"
+        }
+      >
+        <div className="space-y-3">
+          {run.overlaps.length > 0 && (
+            <div>
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Common ground</div>
+              <OverlapChips overlaps={run.overlaps} />
+            </div>
+          )}
+          {run.network.intros.length > 0 && <IntroList intros={run.network.intros} firstName={first} />}
+          {run.phase === "mapping" && !run.network.intros.length && (
+            <p className="flex items-center gap-1.5 text-xs text-slate-400">
+              <LoaderCircle className="size-3 animate-spin" /> Claude is checking who {first} can help, and who can help{" "}
+              {first}…
+            </p>
+          )}
+          {run.network.ideas.length > 0 && (
+            <Section title="Ideas to verify">
+              <IdeaList ideas={run.network.ideas} />
+            </Section>
+          )}
+        </div>
+      </Step>
+
+      <Step
+        state={state(4)}
         icon={Check}
         title={
           run.phase !== "done"
-            ? "Save to profile"
-            : run.outcome === "matched"
-              ? "Saved to profile"
-              : "No confident match, so nothing attached"
+            ? "Save"
+            : run.introsSaved
+              ? `Saved · ${run.introsSaved} introduction${run.introsSaved > 1 ? "s" : ""} in your briefing pipeline${run.introsAdded ? ` (${run.introsAdded} new)` : ""}`
+              : "Saved to profile"
         }
         last
-      />
+      >
+        {run.phase === "done" && (
+          <div className="flex flex-wrap gap-2">
+            {!!run.introsSaved && (
+              <Link href="/" className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${btn.primary}`}>
+                Open briefing <ArrowRight className="size-3.5" />
+              </Link>
+            )}
+            <button type="button" onClick={onClose} className={`rounded-lg px-2.5 py-1.5 text-xs font-medium ${btn.ghost}`}>
+              Show saved profile
+            </button>
+          </div>
+        )}
+      </Step>
 
       {run.phase === "error" && (
         <div className="mt-3 rounded-xl bg-red-50 px-3 py-2.5 text-xs text-red-700">
@@ -304,7 +389,7 @@ function Step({
       </span>
       <div className={`min-w-0 flex-1 ${last ? "" : "pb-4"}`}>
         <div className={`pt-0.5 font-medium ${state === "waiting" ? "text-slate-400" : "text-slate-800"}`}>{title}</div>
-        {children && state !== "waiting" && <div className="mt-1.5">{children}</div>}
+        {children && state !== "waiting" && <div className="mt-2">{children}</div>}
       </div>
     </div>
   );
