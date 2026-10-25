@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { structuredStream } from "./claude";
+import { MATCH_MODEL, structuredStream } from "./claude";
 import { enrichmentLine } from "./enrich";
 import { contactLine, MatchSchema, matchSystem, signalLine } from "./match";
 import { must, type Ctx } from "./supabase";
@@ -136,6 +136,8 @@ export async function mapNetworkAndSave(
   });
 
   const out = await structuredStream({
+    // Same rubric as intro matching, so the same model.
+    model: MATCH_MODEL,
     system: (await matchSystem(ctx)) + "\n" + FOCUS_RULES,
     user: `<network>
 ${directory}

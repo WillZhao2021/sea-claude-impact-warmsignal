@@ -1,4 +1,4 @@
-import { textCall } from "./claude";
+import { FAST_MODEL, textCall } from "./claude";
 import { buildBriefing, type Candidate } from "./briefing";
 import { getProfile, profilePrompt, signOffInstruction, type Profile, type Tone } from "./profile";
 import { must, type Ctx } from "./supabase";
@@ -54,7 +54,7 @@ export async function draftOutreach(
   kind: DraftKind = draftKindFor(c),
   profile: Profile | null = null,
 ): Promise<string> {
-  return textCall({ system: system(profile), user: prompt(c, kind) });
+  return textCall({ system: system(profile), user: prompt(c, kind), model: FAST_MODEL });
 }
 
 /** Returns the stored draft for the card's current step, generating and saving it if missing. */

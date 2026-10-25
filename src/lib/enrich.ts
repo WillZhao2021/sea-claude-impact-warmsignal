@@ -1,6 +1,6 @@
 import { tavily, type TavilySearchResponse } from "@tavily/core";
 import { z } from "zod";
-import { structuredCall, structuredStream } from "./claude";
+import { FAST_MODEL, structuredCall, structuredStream } from "./claude";
 import { must, type Ctx } from "./supabase";
 import type { Attribute, Contact, Enrichment } from "./types";
 
@@ -152,6 +152,7 @@ ${results
   .join("\n")}
 </search_results>`,
     schema: EnrichmentSchema,
+    model: FAST_MODEL,
     effort: "low" as const,
   };
   const out = opts.onEvent

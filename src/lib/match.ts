@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { structuredCall } from "./claude";
+import { MATCH_MODEL, structuredCall } from "./claude";
 import { getProfile, profilePrompt } from "./profile";
 import { must, type Ctx } from "./supabase";
 import { enrichmentLine } from "./enrich";
@@ -147,6 +147,7 @@ ${batch
   })
   .join("\n")}`,
         schema: MatchResultSchema,
+        model: MATCH_MODEL,
         effort: "high",
       }),
     ),
