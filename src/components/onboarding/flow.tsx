@@ -30,6 +30,7 @@ import {
   type OnboardingSummary,
 } from "@/app/onboarding/actions";
 import { Avatar, btn, card, Logo } from "@/components/ui";
+import { LINKEDIN_EXPORT_URL } from "@/lib/linkedin";
 import { GOALS, INDUSTRIES, OFFERS, REVENUE, ROLES, type Profile, type Tone } from "@/lib/profile";
 import {
   FIELDS,
@@ -355,9 +356,13 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
                 <span>
                   <span className="block font-semibold text-slate-900">{csv ? csv.fileName : "Upload a CSV"}</span>
                   <span className="text-sm text-slate-500">
-                    {csv
-                      ? `${contacts.length} people · ${withNotes} with notes`
-                      : "Name, company, title, relationship and your notes. Notes are where intros come from."}
+                    {csv?.linkedin
+                      ? `${contacts.length} LinkedIn connections${
+                          csv.linkedin.total > contacts.length ? ` (your most recent, of ${csv.linkedin.total})` : ""
+                        }`
+                      : csv
+                        ? `${contacts.length} people · ${withNotes} with notes`
+                        : "Name, company, title, relationship and your notes. Notes are where intros come from."}
                   </span>
                 </span>
                 <span className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold ${btn.secondary}`}>{csv ? "Choose another file" : "Choose file"}</span>
@@ -372,6 +377,16 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
                   }}
                 />
               </label>
+
+              {!csv && (
+                <p className="text-center text-xs leading-relaxed text-slate-500">
+                  On LinkedIn? Export your connections from{" "}
+                  <a href={LINKEDIN_EXPORT_URL} target="_blank" rel="noreferrer" className="font-medium text-ink-700 underline-offset-2 hover:underline">
+                    Settings → Data privacy → Get a copy of your data
+                  </a>{" "}
+                  (choose Connections) and upload Connections.csv as is.
+                </p>
+              )}
 
               <div className="flex flex-col items-center gap-1 text-sm">
                 {!hasDemo && (

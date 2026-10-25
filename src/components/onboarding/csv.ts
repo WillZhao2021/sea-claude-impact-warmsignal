@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import type { MappedContact } from "@/app/onboarding/actions";
+import { LINKEDIN_MAX, parseLinkedInConnections } from "@/lib/linkedin";
 
 // Client-side CSV handling for onboarding: parse, guess which column is which, and map
 // relationship labels ("warm", "referral", "4") onto WarmSignal's 1–5 relationship strength.
@@ -36,9 +37,28 @@ export const WARMTH: { id: Warmth; label: string; strength: number }[] = [
   { id: "close", label: "Close", strength: 4 },
 ];
 
-export type ParsedCsv = { fileName: string; header: string[]; rows: string[][] };
+export type ParsedCsv = {
+  fileName: string;
+  header: string[];
+  rows: string[][];
+  /** Set for LinkedIn's Connections.csv export: total connections in the file, before the cap. */
+  linkedin?: { total: number };
+};
 
 export function parseCsv(fileName: string, text: string): ParsedCsv | { error: string } {
+  // LinkedIn's export has a preamble and split names; turn it into columns guessColumns recognizes.
+  const linkedin = parseLinkedInConnections(text);
+  if (linkedin) {
+    if (!linkedin.length) return { error: "That LinkedIn export has no connections in it." };
+    return {
+      fileName,
+      header: ["Name", "Company", "Position", "Relationship", "Connected On", "LinkedIn URL"],
+      rows: linkedin
+        .slice(0, LINKEDIN_MAX)
+        .map((c) => [c.name, c.company ?? "", c.title ?? "", "LinkedIn connection", c.connected_on ?? "", c.url ?? ""]),
+      linkedin: { total: linkedin.length },
+    };
+  }
   const out = Papa.parse<string[]>(text.replace(/^﻿/, ""), { skipEmptyLines: "greedy" });
   const rows = out.data.filter((r) => r.some((c) => c.trim()));
   if (rows.length < 2) return { error: "That file has no contact rows. The first row should be headers, with one contact per row below." };
