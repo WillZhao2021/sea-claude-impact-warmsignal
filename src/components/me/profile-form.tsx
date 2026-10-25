@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Gift, Handshake, LoaderCircle, Quote } from "lucide-react";
+import { Check, Gift, Handshake, LoaderCircle, Quote, Sprout } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { saveAnswersAction } from "@/app/onboarding/actions";
@@ -12,6 +12,8 @@ import { GOALS, INDUSTRIES, OFFERS, profilePrompt, REVENUE, ROLES, type Profile,
 // controls and its validated save action, so both places stay in step.
 
 const GOAL_ICONS = { give: Gift, ask: Handshake } as const;
+/** No goal set = the default: cultivate the network (stay in touch, help where you can, no asks). */
+const DEFAULT_GOAL = { id: null, name: "Cultivate my network", sub: "Default. Stay in touch and help where you can" } as const;
 const FIELDS = [
   "full_name",
   "offers",
@@ -87,13 +89,13 @@ export function ProfileForm({ initial }: { initial: Profile }) {
       </FormCard>
 
       <FormCard title="Your goal right now" lead="Breaks ties between introductions and frames your drafts. Daily Networker always leads with giving.">
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          {GOALS.map((g) => {
-            const Icon = GOAL_ICONS[g.id];
+        <div className="grid gap-2.5 sm:grid-cols-3">
+          {[DEFAULT_GOAL, ...GOALS].map((g) => {
+            const Icon = g.id ? GOAL_ICONS[g.id] : Sprout;
             const on = p.goal === g.id;
             return (
               <button
-                key={g.id}
+                key={g.id ?? "cultivate"}
                 type="button"
                 aria-pressed={on}
                 onClick={() => set("goal", g.id)}

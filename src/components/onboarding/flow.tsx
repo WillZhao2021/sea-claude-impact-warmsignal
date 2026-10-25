@@ -6,9 +6,7 @@ import {
   Check,
   CircleAlert,
   FileSpreadsheet,
-  Gift,
   Globe,
-  Handshake,
   LoaderCircle,
   Sparkles,
   Upload,
@@ -28,7 +26,7 @@ import {
 } from "@/app/onboarding/actions";
 import { Avatar, btn, card, Logo } from "@/components/ui";
 import { LINKEDIN_EXPORT_URL } from "@/lib/linkedin";
-import { GOALS, INDUSTRIES, OFFERS, REVENUE, ROLES, type Profile, type Tone } from "@/lib/profile";
+import { INDUSTRIES, OFFERS, REVENUE, ROLES, type Profile, type Tone } from "@/lib/profile";
 import {
   FIELDS,
   guessColumns,
@@ -45,9 +43,17 @@ import {
 // Answers are saved as you go; the last step runs the real pipeline (Claude extraction,
 // web enrichment, matching, drafts) and shows progress between server calls.
 
-type Step = "welcome" | "business" | "goal" | "clients" | "cadence" | "upload" | "enrich";
-const ORDER: Step[] = ["welcome", "business", "goal", "clients", "cadence", "upload", "enrich"];
-const GOAL_ICONS = { give: Gift, ask: Handshake } as const;
+type Step = "welcome" | "business" | "clients" | "cadence" | "upload" | "enrich";
+// No goal step: everyone starts with the default, cultivating their network (goal = null); Me can change it.
+const ORDER: Step[] = ["welcome", "business", "clients", "cadence", "upload", "enrich"];
+const STEPS = ORDER.length - 2; // numbered steps, excluding welcome and enrich
+
+/** Simple paces instead of a wall of sliders. Asks per week etc. keep their defaults (editable on Me). */
+const PACES = [
+  { id: "light", name: "Light", per_day: 2, rest_days: 30, sub: "A few minutes a day", recommended: false },
+  { id: "steady", name: "Steady", per_day: 3, rest_days: 21, sub: "A good daily habit", recommended: true },
+  { id: "active", name: "Active", per_day: 5, rest_days: 14, sub: "Building momentum fast", recommended: false },
+] as const;
 
 type Props = {
   initial: Profile;
@@ -59,7 +65,8 @@ type Props = {
 export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichment }: Props) {
   const [step, setStep] = useState<Step>(initial.onboarded_at ? "business" : "welcome");
   const [back, setBack] = useState(false);
-  const [p, setP] = useState<Profile>(initial);
+  // First-time setup starts on the recommended "Steady" pace; re-runs keep the saved one.
+  const [p, setP] = useState<Profile>(initial.onboarded_at ? initial : { ...initial, per_day: 3, rest_days: 21 });
   const [saving, startSaving] = useTransition();
 
   // Contacts step
@@ -167,17 +174,15 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
       case "business":
         return {
           label: "Continue",
-          onClick: () => saveAndGo("goal", ["full_name", "offers", "offer_line"]),
+          onClick: () => saveAndGo("clients", ["full_name", "offers", "offer_line"]),
           disabled: !(p.full_name ?? "").trim() || (!p.offers.length && !(p.offer_line ?? "").trim()),
         };
-      case "goal":
-        return { label: "Continue", onClick: () => saveAndGo("clients", ["goal"]), disabled: !p.goal };
       case "clients":
         return { label: "Continue", onClick: () => saveAndGo("cadence", ["industries", "roles", "revenue"]) };
       case "cadence":
         return {
           label: "Continue",
-          onClick: () => saveAndGo("upload", ["per_day", "asks_per_week", "gives_per_ask", "rest_days", "tone"]),
+          onClick: () => saveAndGo("upload", ["per_day", "rest_days", "tone"]),
         };
       case "upload":
         return {
@@ -221,11 +226,11 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200/70">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-ink-600 transition-[width] duration-500"
-                  style={{ width: `${Math.min(100, (index / 6) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (index / (STEPS + 1)) * 100)}%` }}
                 />
               </div>
               <span className="w-9 text-right text-xs font-medium tabular-nums text-slate-400">
-                {index < 6 ? `${index}/5` : ""}
+                {index <= STEPS ? `${index}/${STEPS}` : ""}
               </span>
             </>
           )}
@@ -276,43 +281,8 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
               </label>
             </Section>
           )}
-          {step === "goal" && (
-            <Section eyebrow="Step 2 · Goal" title="What do you want from your network right now?" lead="This decides which introductions break ties and how drafts are framed. Daily Networker always leads with giving.">
-              <div className="space-y-2.5">
-                {GOALS.map((g) => {
-                  const Icon = GOAL_ICONS[g.id];
-                  const on = p.goal === g.id;
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => {
-                        set("goal", g.id);
-                        startSaving(async () => {
-                          await saveAnswersAction({ goal: g.id });
-                          setTimeout(() => go("clients"), 180);
-                        });
-                      }}
-                      className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
-                        on ? "border-ink-500 bg-ink-50 ring-4 ring-ink-100" : "border-slate-200 bg-white shadow-sm hover:border-slate-300"
-                      }`}
-                    >
-                      <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${on ? "bg-ink-900 text-white" : "bg-slate-100 text-ink-700"}`}>
-                        <Icon className="size-5" strokeWidth={1.75} />
-                      </span>
-                      <span>
-                        <span className="block font-semibold text-slate-900">{g.name}</span>
-                        <span className="text-sm text-slate-500">{g.sub}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </Section>
-          )}
           {step === "clients" && (
-            <Section eyebrow="Step 3 · Ideal clients" title="Who are you trying to reach?" lead="Optional. Skip anything that doesn't apply.">
+            <Section eyebrow="Step 2 · Ideal clients" title="Who are you trying to reach?" lead="Optional. Skip anything that doesn't apply.">
               <Group label="Industry">
                 <Chips options={INDUSTRIES.map((x) => [x, x])} selected={p.industries} onChange={(v) => set("industries", v)} />
               </Group>
@@ -330,11 +300,30 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
             </Section>
           )}
           {step === "cadence" && (
-            <Section eyebrow="Step 4 · Reach-out rhythm" title="How often should we nudge you?">
-              <Slider label="Introductions per day" value={p.per_day} min={1} max={10} format={(v) => `${v} ${v === 1 ? "person" : "people"}`} onChange={(v) => set("per_day", v)} hint="Small and steady beats a burst you can't keep up." />
-              <Slider label="Asks per week, at most" value={p.asks_per_week} min={0} max={5} format={(v) => (v === 0 ? "no asks" : `${v} per week`)} onChange={(v) => set("asks_per_week", v)} />
-              <Slider label="Give before you ask" value={p.gives_per_ask} min={0} max={5} format={(v) => (v === 0 ? "off" : `${v} gives per ask`)} onChange={(v) => set("gives_per_ask", v)} hint="Intros and check-ins you send before an ask unlocks each week." />
-              <Slider label="Rest after reaching out" value={p.rest_days} min={3} max={60} format={(v) => `${v} days`} onChange={(v) => set("rest_days", v)} hint="Nobody shows up again until this many days have passed." />
+            <Section eyebrow="Step 3 · Reach-out rhythm" title="How much time do you have for your network?" lead="Pick a pace. You can change it any time on the Me page.">
+              <div className="grid gap-2.5 sm:grid-cols-3">
+                {PACES.map((pace) => {
+                  const on = p.per_day === pace.per_day && p.rest_days === pace.rest_days;
+                  return (
+                    <button
+                      key={pace.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setP((prev) => ({ ...prev, per_day: pace.per_day, rest_days: pace.rest_days }))}
+                      className={`rounded-2xl border p-4 text-left transition ${
+                        on ? "border-ink-500 bg-ink-50 ring-4 ring-ink-100" : "border-slate-200 bg-white shadow-sm hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-slate-900">{pace.name}</span>
+                        {pace.recommended && <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-800">Recommended</span>}
+                      </span>
+                      <span className="mt-1 block text-sm text-slate-600">{pace.per_day} people a day</span>
+                      <span className="block text-xs text-slate-500">{pace.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
               <Group label="Message tone">
                 <Segmented
                   options={[
@@ -346,10 +335,17 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
                   onChange={(v) => set("tone", v as Tone)}
                 />
               </Group>
+              <details className="group rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900">Fine-tune</summary>
+                <div className="mt-4 space-y-5">
+                  <Slider label="People per day" value={p.per_day} min={1} max={10} format={(v) => `${v} ${v === 1 ? "person" : "people"}`} onChange={(v) => set("per_day", v)} />
+                  <Slider label="Rest after reaching out" value={p.rest_days} min={3} max={60} format={(v) => `${v} days`} onChange={(v) => set("rest_days", v)} hint="Nobody shows up again until this many days have passed." />
+                </div>
+              </details>
             </Section>
           )}
           {step === "upload" && (
-            <Section eyebrow="Step 5 · Contacts" title="Add your contacts">
+            <Section eyebrow="Step 4 · Contacts" title="Add your contacts">
               <label
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -619,7 +615,7 @@ function Welcome() {
       </div>
       <ol className="space-y-3 text-sm text-slate-700">
         {[
-          "Answer four quick questions. Tap or slide, no typing needed.",
+          "Answer three quick questions. Mostly taps, very little typing.",
           "Upload a CSV of contacts with your notes, or try the demo network.",
           "Get today's introductions with drafted messages, ready to copy or skip.",
         ].map((t, i) => (

@@ -26,6 +26,9 @@ export const FACTOR_LABELS: Record<FactorKey, string> = {
 };
 
 /** Factor weights per onboarding goal. Each row sums to 1. */
+/** The default when no goal is set: cultivate the network. Keep relationships warm and help where you can; no asks. */
+const CULTIVATE: Record<FactorKey, number> = { give: 0.3, loop: 0.15, cooling: 0.25, timing: 0.15, fit: 0.05, ask: 0, relationship: 0.1 };
+
 const WEIGHTS: Record<Goal, Record<FactorKey, number>> = {
   give: { give: 0.4, loop: 0.15, cooling: 0.15, timing: 0.1, fit: 0.05, ask: 0.05, relationship: 0.1 },
   ask: { give: 0.15, loop: 0.1, cooling: 0.15, timing: 0.1, fit: 0.2, ask: 0.25, relationship: 0.05 },
@@ -91,7 +94,7 @@ function assess(
   if (c.last_outreach_at && daysBetween(c.last_outreach_at, evalDate) < rest) return null;
 
   const daysSinceSpoke = c.last_interaction_date ? daysBetween(c.last_interaction_date, evalDate) : null;
-  const weights = WEIGHTS[profile?.goal ?? "give"];
+  const weights = profile?.goal ? WEIGHTS[profile.goal] : CULTIVATE;
   const factors: Record<FactorKey, number> = { give: 0, loop: 0, cooling: 0, timing: 0, fit: 0, ask: 0, relationship: 0 };
   const reasons: Omit<TodayReason, "points">[] = [];
 

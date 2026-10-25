@@ -131,7 +131,9 @@ export function profilePrompt(p: Profile | null): string {
   return [
     p.full_name ? `The user's name is ${p.full_name}.` : null,
     `The user offers: ${offerLine(p)}.`,
-    goal ? `Their current goal: ${goal.name.toLowerCase()} (${goal.sub.toLowerCase()}).` : null,
+    goal
+      ? `Their current goal: ${goal.name.toLowerCase()} (${goal.sub.toLowerCase()}).`
+      : "Their goal: cultivate their network. Stay in touch, keep relationships warm, and help where they can.",
     ideal ? `Their ideal clients: ${ideal}.` : null,
   ]
     .filter(Boolean)
