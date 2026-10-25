@@ -359,10 +359,12 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
               </label>
 
               <div className="flex flex-col items-center gap-1 text-sm">
-                <ChoiceLink on={source === "demo"} onClick={() => pickSource("demo")}>
-                  {hasDemo ? "Use the demo network you already loaded" : "Or try the demo network (35 people)"}
-                </ChoiceLink>
-                {existingContacts > 0 && !hasDemo && (
+                {!hasDemo && (
+                  <ChoiceLink on={source === "demo"} onClick={() => pickSource("demo")}>
+                    Or try the demo network (35 people)
+                  </ChoiceLink>
+                )}
+                {existingContacts > 0 && (
                   <ChoiceLink on={source === "existing"} onClick={() => pickSource("existing")}>
                     Keep my {existingContacts} existing contacts
                   </ChoiceLink>

@@ -9,7 +9,13 @@ import {
   Check,
   ChevronDown,
   CircleAlert,
-  Coffee,
+  ExternalLink,
+  Gift,
+  HeartHandshake,
+  Hourglass,
+  Repeat,
+  Target,
+  Zap,
   Filter,
   Layers,
   RefreshCw,
@@ -22,6 +28,8 @@ import {
   advanceAction,
   findIntroductionsAction,
   loadDemoAction,
+  reconnectDecisionAction,
+  reconnectRedraftAction,
   redraftAction,
   setEvalDateAction,
   setStatusAction,
@@ -30,11 +38,12 @@ import { DraftBox } from "@/components/draft-box";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, Logo, PageHeader } from "@/components/ui";
 import { requireCtx } from "@/lib/auth";
-import { buildBriefing, defaultEvalDate, type Candidate } from "@/lib/briefing";
-import { buildCatchUpDeck } from "@/lib/catch-up";
+import { defaultEvalDate, type Candidate } from "@/lib/briefing";
+import { getOrCreateCatchUpDraft } from "@/lib/catch-up";
 import { draftKindFor, getOrCreateDraft } from "@/lib/draft";
 import { getProfile } from "@/lib/profile";
 import { WEIGHTS } from "@/lib/scoring";
+import { buildToday, FACTOR_LABELS, type FactorKey, type ReasonKind, type TodayPerson } from "@/lib/today";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -50,9 +59,9 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
     .eq("owner_id", ctx.ownerId);
   if (!contactCount) return <Welcome />;
 
-  const briefing = await buildBriefing(ctx, evalDate);
-  const catchUp = await buildCatchUpDeck(ctx, evalDate, briefing);
-  const n = briefing.recommendations.length;
+  const today = await buildToday(ctx, evalDate);
+  const { briefing } = today;
+  const n = today.people.length;
 
   return (
     <div className="space-y-8">
@@ -62,8 +71,8 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
           month: "short",
           day: "numeric",
         })}
-        title={n === 0 ? "No introductions today" : `Your ${n} ${n === 1 ? "introduction" : "introductions"} for today`}
-        subtitle="High-leverage opportunities to create value for your network."
+        title={n === 0 ? "No one to reach out to today" : `Talk with ${n} ${n === 1 ? "person" : "people"} today`}
+        subtitle="Each has a reason to hear from you: an intro you can make, a relationship cooling off, or something timely."
         actions={
           <>
             <form action={setEvalDateAction} className="flex items-center rounded-lg border border-slate-200 bg-white/80 shadow-sm backdrop-blur">
@@ -81,53 +90,51 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
             <form action={findIntroductionsAction}>
               <input type="hidden" name="eval_date" value={evalDate} />
               <SubmitButton pendingText="Claude is reviewing your network…" className={btn.primary}>
-                <Sparkles className="size-4" /> Find introductions
+                <Sparkles className="size-4" /> Refresh
               </SubmitButton>
             </form>
           </>
         }
       />
 
-      {catchUp.length > 0 && <CatchUpNudge people={catchUp.map((c) => c.name)} evalDate={evalDate} />}
-
       {n === 0 && (
         <div className={`${card} flex flex-col items-center px-6 py-14 text-center`}>
           <div className="flex size-14 items-center justify-center rounded-2xl bg-ink-50 text-ink-600">
             <Sparkles className="size-6" />
           </div>
-          <h2 className="mt-4 text-lg font-semibold text-slate-900">Nothing qualifies right now</h2>
+          <h2 className="mt-4 text-lg font-semibold text-slate-900">Nothing pressing today</h2>
           <p className="mt-1 max-w-md text-sm text-slate-500">
             That&apos;s fine: WarmSignal never pads the list. Log new conversations on the Contacts page, then click{" "}
-            <span className="font-medium text-slate-700">Find introductions</span>.
+            <span className="font-medium text-slate-700">Refresh</span>.
           </p>
         </div>
       )}
 
       <ol className="space-y-4">
-        {briefing.recommendations.map((c, i) => (
-          <RecommendationCard key={c.opp.id} rank={i + 1} c={c} evalDate={evalDate} />
+        {today.people.map((person, i) => (
+          <PersonCard key={person.contact.id} rank={i + 1} person={person} evalDate={evalDate} />
         ))}
       </ol>
 
-      {(briefing.alsoConsidered.length > 0 || briefing.filteredOut.length > 0) && (
+      {(today.more.length > 0 || briefing.filteredOut.length > 0) && (
         <div className="grid gap-4 pt-2 md:grid-cols-2">
-          {briefing.alsoConsidered.length > 0 && (
+          {today.more.length > 0 && (
             <Disclosure
               icon={<Layers className="size-4" />}
-              title={`Also eligible (${briefing.alsoConsidered.length})`}
-              hint="Lower-ranked, or a second option for someone above"
+              title={`More people worth a note (${today.more.length})`}
+              hint="Had a reason, but ranked below today's cut"
             >
               <ul className="divide-y divide-slate-100">
-                {briefing.alsoConsidered.map((c) => (
-                  <li key={c.opp.id} className="flex items-center justify-between gap-4 py-2.5">
+                {today.more.map((m) => (
+                  <li key={m.contact.id} className="flex items-center justify-between gap-4 py-2.5">
                     <span className="min-w-0">
-                      <span className="font-medium text-slate-800">
-                        {c.recipient.name} <ArrowLeftRight className="inline size-3 text-slate-400" /> {c.proposed.name}
-                      </span>
-                      <span className="block truncate text-slate-500">{c.need.description}</span>
+                      <Link href={`/contacts/${m.contact.id}`} className="font-medium text-slate-800 hover:text-ink-700">
+                        {m.contact.name}
+                      </Link>
+                      <span className="block truncate text-slate-500">{m.reasons.map((r) => r.title).join(" · ")}</span>
                     </span>
                     <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600">
-                      {Math.round(c.score.total)}
+                      {Math.round(m.score)}
                     </span>
                   </li>
                 ))}
@@ -137,8 +144,8 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
           {briefing.filteredOut.length > 0 && (
             <Disclosure
               icon={<Filter className="size-4" />}
-              title={`Filtered out (${briefing.filteredOut.length})`}
-              hint="Why these weren't recommended"
+              title={`Intros we held back (${briefing.filteredOut.length})`}
+              hint="Why these introductions weren't suggested"
             >
               <ul className="divide-y divide-slate-100">
                 {briefing.filteredOut.map((c) => (
@@ -158,35 +165,6 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
         </div>
       )}
     </div>
-  );
-}
-
-/** Nudge toward the catch-up deck: a stack of the people due for a meeting. */
-function CatchUpNudge({ people, evalDate }: { people: string[]; evalDate: string }) {
-  const n = people.length;
-  return (
-    <Link
-      href={evalDate === defaultEvalDate() ? "/catch-up" : `/catch-up?date=${evalDate}`}
-      className={`${card} group flex animate-rise items-center gap-4 px-5 py-4 transition hover:shadow-card-lg sm:px-6`}
-    >
-      <span className="flex -space-x-3">
-        {people.slice(0, 3).map((name) => (
-          <Avatar key={name} name={name} size="sm" />
-        ))}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-semibold text-slate-900">
-          {n} {n === 1 ? "person is" : "people are"} due for a catch-up
-        </span>
-        <span className="block truncate text-sm text-slate-500">
-          {people.slice(0, 2).map((p) => p.split(" ")[0]).join(", ")}
-          {n > 2 && ` and ${n - 2} more`}. Swipe through them in a minute.
-        </span>
-      </span>
-      <span className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition group-hover:bg-ink-800 ${btn.primary}`}>
-        <Coffee className="size-4" /> <span className="hidden sm:inline">Start</span>
-      </span>
-    </Link>
   );
 }
 
@@ -218,7 +196,200 @@ function Disclosure({
 
 const first = (name: string) => name.split(" ")[0];
 
-function RecommendationCard({ rank, c, evalDate }: { rank: number; c: Candidate; evalDate: string }) {
+/** Removes sentences that cite internal matching refs (N12, P3…) from older model output. */
+const clean = (text: string | null) =>
+  text
+    ?.split(/(?<=[.;!?])\s+/)
+    .filter((sentence) => !/\b[NOP]\d+\b/.test(sentence))
+    .join(" ")
+    .trim() || null;
+
+const REASON_STYLE: Record<ReasonKind, { icon: React.ReactNode; tone: string }> = {
+  give: { icon: <Gift className="size-4" />, tone: "bg-violet-50 text-violet-700 ring-violet-200/70" },
+  loop: { icon: <Repeat className="size-4" />, tone: "bg-emerald-50 text-emerald-700 ring-emerald-200/70" },
+  cooling: { icon: <Hourglass className="size-4" />, tone: "bg-sky-50 text-sky-700 ring-sky-200/70" },
+  timing: { icon: <Zap className="size-4" />, tone: "bg-amber-50 text-amber-700 ring-amber-200/70" },
+  fit: { icon: <Target className="size-4" />, tone: "bg-indigo-50 text-indigo-700 ring-indigo-200/70" },
+  relationship: { icon: <HeartHandshake className="size-4" />, tone: "bg-rose-50 text-rose-700 ring-rose-200/70" },
+};
+
+/** One person to talk with today: why (several reasons), then the single best next step. */
+function PersonCard({ rank, person, evalDate }: { rank: number; person: TodayPerson; evalDate: string }) {
+  const c = person.contact;
+  const name = first(c.name);
+  // Lead with the intro flow when an intro is the strongest reason (or one is already under way).
+  const top = person.reasons[0]?.kind;
+  const leadWithIntro = person.intro && (top === "give" || top === "loop" || person.factors.loop > 0);
+
+  return (
+    <li className="animate-rise" style={{ animationDelay: `${(rank - 1) * 70}ms` }}>
+      <details name="today" open={rank === 1} className={`group ${card} transition hover:shadow-card-lg open:shadow-card-lg`}>
+        <summary className="flex cursor-pointer items-center gap-4 px-5 py-4 sm:px-6">
+          <Avatar name={c.name} />
+          <span className="min-w-0 flex-1">
+            <span className="block text-lg font-bold tracking-tight text-slate-950 group-open:text-xl">Talk with {c.name}</span>
+            <span className="block truncate text-sm text-slate-500">{[c.title, c.company].filter(Boolean).join(" · ")}</span>
+            <span className="mt-2 flex flex-wrap gap-1.5 group-open:hidden">
+              {person.reasons.slice(0, 3).map((r) => (
+                <span key={r.kind + r.title} className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${REASON_STYLE[r.kind].tone}`}>
+                  {REASON_STYLE[r.kind].icon}
+                  <span className="truncate">{FACTOR_LABELS[r.kind]}</span>
+                </span>
+              ))}
+            </span>
+          </span>
+          <ScorePill score={person.score} />
+          <ChevronDown className="size-5 shrink-0 text-slate-400 transition group-open:rotate-180" />
+        </summary>
+
+        <div className="space-y-6 px-5 pb-6 sm:px-6">
+          <section>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-600">Why today</p>
+            <ul className="space-y-3">
+              {person.reasons.map((r) => (
+                <li key={r.kind + r.title} className="flex items-start gap-3">
+                  <span className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${REASON_STYLE[r.kind].tone}`}>
+                    {REASON_STYLE[r.kind].icon}
+                  </span>
+                  <span className="min-w-0 flex-1 text-sm">
+                    <span className="block font-semibold text-slate-900">{r.title}</span>
+                    {r.detail && <span className="block text-slate-600">{r.detail}</span>}
+                    {r.source &&
+                      (r.source.url ? (
+                        <a href={r.source.url} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-xs text-ink-600 hover:underline">
+                          <ExternalLink className="size-3" /> {r.source.label}
+                        </a>
+                      ) : (
+                        <span className="mt-0.5 block text-xs italic text-slate-400">{r.source.label}</span>
+                      ))}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-slate-400">+{r.points.toFixed(0)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {leadWithIntro && person.intro ? (
+            <IntroAction c={person.intro} evalDate={evalDate} />
+          ) : (
+            <ReconnectAction person={person} evalDate={evalDate} />
+          )}
+          {!leadWithIntro && person.intro && (
+            <details className="group/intro rounded-xl border border-slate-100 px-4 py-3">
+              <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900">
+                <Gift className="size-4 text-violet-500" /> Also: introduce {name} to {person.intro.proposed.name}
+                <ChevronDown className="ml-auto size-4 transition group-open/intro:rotate-180" />
+              </summary>
+              <div className="mt-4">
+                <IntroAction c={person.intro} evalDate={evalDate} />
+              </div>
+            </details>
+          )}
+
+          <details className="group/score">
+            <summary className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800">
+              <ChevronDown className="size-4 transition group-open/score:rotate-180" /> How {name} ranked today
+            </summary>
+            <div className="mt-4 max-w-md">
+              <TodayBreakdown person={person} />
+            </div>
+          </details>
+        </div>
+      </details>
+    </li>
+  );
+}
+
+/** Reach out to reconnect: a meet-up message drafted from the reasons above. */
+function ReconnectAction({ person, evalDate }: { person: TodayPerson; evalDate: string }) {
+  const c = person.contact;
+  const name = first(c.name);
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5">
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink-600">Next step</p>
+        <p className="font-semibold text-slate-900">Reach out to {name} and suggest a catch-up</p>
+      </div>
+      <Suspense fallback={<DraftSkeleton />}>
+        <ReconnectDraft contactId={c.id} evalDate={evalDate} label={`To ${name}`} />
+      </Suspense>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <form action={reconnectDecisionAction} className="flex gap-2">
+          <input type="hidden" name="contact_id" value={c.id} />
+          <input type="hidden" name="eval_date" value={evalDate} />
+          <SubmitButton name="decision" value="sent" pendingText="Saving…" className={btn.primary}>
+            <Send className="size-4" /> Mark as sent
+          </SubmitButton>
+          <SubmitButton name="decision" value="snooze" pendingText="Saving…" className={btn.secondary}>
+            Not now (14d)
+          </SubmitButton>
+        </form>
+        <form action={reconnectRedraftAction}>
+          <input type="hidden" name="contact_id" value={c.id} />
+          <input type="hidden" name="eval_date" value={evalDate} />
+          <SubmitButton pendingText="Redrafting…" className={btn.ghost}>
+            <RefreshCw className="size-3.5" /> Redraft
+          </SubmitButton>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+async function ReconnectDraft({ contactId, evalDate, label }: { contactId: string; evalDate: string; label: string }) {
+  const result = await getOrCreateCatchUpDraft(await requireCtx(), contactId, evalDate).then(
+    (draft) => ({ draft, error: null }),
+    (e: Error) => ({ draft: null, error: e.message }),
+  );
+  if (result.draft == null) {
+    return <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">Couldn&apos;t draft a message: {result.error}</p>;
+  }
+  return <DraftBox key={result.draft} draft={result.draft} label={label} />;
+}
+
+const TODAY_COLORS: Record<FactorKey, string> = {
+  give: "bg-violet-500",
+  loop: "bg-emerald-500",
+  cooling: "bg-sky-400",
+  timing: "bg-amber-400",
+  fit: "bg-indigo-400",
+  relationship: "bg-rose-300",
+};
+
+function TodayBreakdown({ person }: { person: TodayPerson }) {
+  const keys = (Object.keys(person.factors) as FactorKey[]).sort(
+    (a, b) => person.weights[b] * person.factors[b] - person.weights[a] * person.factors[a],
+  );
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm font-semibold text-slate-800">Today score</span>
+        <span className="text-sm font-semibold text-slate-900">
+          {person.score} <span className="font-normal text-slate-400">/ 100</span>
+        </span>
+      </div>
+      <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+        {keys.map((k) => (
+          <div key={k} className={`${TODAY_COLORS[k]} border-r border-white last:border-0`} style={{ width: `${person.weights[k] * person.factors[k] * 100}%` }} />
+        ))}
+      </div>
+      <ul className="mt-3 space-y-1.5 text-xs">
+        {keys.map((k) => (
+          <li key={k} className="flex items-center gap-2">
+            <span className={`size-2 shrink-0 rounded-full ${TODAY_COLORS[k]}`} />
+            <span className="w-40 text-slate-700">{FACTOR_LABELS[k]}</span>
+            <span className="flex-1 text-slate-400">weight {Math.round(person.weights[k] * 100)}%</span>
+            <span className="font-mono text-slate-600">+{(person.weights[k] * person.factors[k] * 100).toFixed(1)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-slate-400">Weights follow the goal you picked in Setup.</p>
+    </div>
+  );
+}
+
+/** The double opt-in intro flow for one candidate: who, why, next step and draft. */
+function IntroAction({ c, evalDate }: { c: Candidate; evalDate: string }) {
   const r = first(c.recipient.name);
   const p = first(c.proposed.name);
   const kind = draftKindFor(c);
@@ -233,27 +404,7 @@ function RecommendationCard({ rank, c, evalDate }: { rank: number; c: Candidate;
     (c.score.daysSinceInteraction != null ? `You haven't connected in ${c.score.daysSinceInteraction} days.` : null);
 
   return (
-    <li className="animate-rise" style={{ animationDelay: `${(rank - 1) * 70}ms` }}>
-      <details
-        name="briefing"
-        open={rank === 1}
-        className={`group ${card} transition hover:shadow-card-lg open:shadow-card-lg`}
-      >
-        <summary className="flex cursor-pointer items-center gap-4 px-5 py-4 sm:px-6">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-ink-50 text-lg font-bold text-ink-700">
-            {rank}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-lg font-bold tracking-tight text-slate-950 group-open:text-xl">
-              Introduce {r} to {p}
-            </span>
-            <span className="block truncate text-sm text-slate-500 group-open:hidden">{c.opp.why_proposed}</span>
-          </span>
-          <ScorePill score={c.score.total} />
-          <ChevronDown className="size-5 shrink-0 text-slate-400 transition group-open:rotate-180" />
-        </summary>
-
-        <div className="space-y-6 px-5 pb-6 sm:px-6">
+    <div className="space-y-6">
           {/* The two people and what flows between them */}
           <div className="grid items-center gap-4 rounded-2xl bg-gradient-to-r from-violet-50/60 via-white to-sky-50/60 p-4 sm:p-5 md:grid-cols-[1fr_auto_1fr]">
             <Person name={c.recipient.name} role={[c.recipient.title, c.recipient.company]}>
@@ -295,10 +446,10 @@ function RecommendationCard({ rank, c, evalDate }: { rank: number; c: Candidate;
             )}
           </div>
 
-          {c.opp.concerns && (
+          {clean(c.opp.concerns) && (
             <div className="flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-inset ring-amber-200/70">
               <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
-              {c.opp.concerns}
+              {clean(c.opp.concerns)}
             </div>
           )}
 
@@ -368,9 +519,7 @@ function RecommendationCard({ rank, c, evalDate }: { rank: number; c: Candidate;
               <ScoreBreakdown c={c} />
             </div>
           </details>
-        </div>
-      </details>
-    </li>
+    </div>
   );
 }
 

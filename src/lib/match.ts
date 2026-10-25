@@ -43,7 +43,8 @@ Rules:
 - Never propose the recipient themselves.
 - "public web" lines are unverified context from web search. They can support why_now or a profile_inference, but never count as a stated need or stated offer.
 - The user's goal and ideal clients (below) are context for tie-breaking only. Never raise give_value because a match serves the user's own business; value to the recipient is what counts.
-- Write tersely: the user reads each recommendation in under 30 seconds. Respect the word limits.`;
+- Write tersely: the user reads each recommendation in under 30 seconds. Respect the word limits.
+- The N#/O#/P# references are internal. Never mention them in any text field; refer to people by name.`;
 
 export function contactLine(ref: string, c: Contact) {
   const pref = c.introduction_preferences ? ` | intro preferences: ${c.introduction_preferences}` : "";

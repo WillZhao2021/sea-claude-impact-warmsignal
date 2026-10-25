@@ -208,6 +208,21 @@ export async function redraftAction(formData: FormData) {
   revalidatePath("/");
 }
 
+// ---------- Today: reconnect (people whose top reason isn't an intro) ----------
+
+export async function reconnectDecisionAction(formData: FormData) {
+  const ctx = await requireCtx();
+  const decision = String(formData.get("decision")) === "snooze" ? "snooze" : "sent";
+  await recordDecision(ctx, String(formData.get("contact_id")), decision, evalDateFrom(formData));
+  revalidatePath("/");
+}
+
+export async function reconnectRedraftAction(formData: FormData) {
+  const ctx = await requireCtx();
+  await getOrCreateCatchUpDraft(ctx, String(formData.get("contact_id")), evalDateFrom(formData), true);
+  revalidatePath("/");
+}
+
 export async function setEvalDateAction(formData: FormData) {
   redirect(`/?date=${String(formData.get("date"))}`);
 }
