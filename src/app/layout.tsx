@@ -13,7 +13,7 @@ import "./globals.css";
 const sans = Plus_Jakarta_Sans({ variable: "--font-sans-face", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "WarmSignal",
+  title: "Daily Networker",
   description: "Be the person who always has something valuable to give.",
 };
 
@@ -53,7 +53,7 @@ function AppShell({ email, children }: { email: string; children: React.ReactNod
       <div className="hidden w-64 shrink-0 border-r border-slate-200/70 bg-white lg:block">
       <aside className="sticky top-0 flex h-screen flex-col px-5 py-7">
         <Link href="/" className="flex items-center gap-2.5 px-2 text-xl font-bold tracking-tight text-slate-950">
-          <Logo /> WarmSignal
+          <Logo /> Daily Networker
         </Link>
         <nav className="mt-10 space-y-1">{nav}</nav>
         <div className="mt-6 border-t border-slate-100 pt-6">
@@ -80,7 +80,7 @@ function AppShell({ email, children }: { email: string; children: React.ReactNod
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-200/70 bg-white/80 px-4 py-3 backdrop-blur lg:hidden">
           <Link href="/" className="mr-1 flex shrink-0 items-center gap-2 font-bold tracking-tight">
-            <Logo size={20} /> <span className="hidden sm:inline">WarmSignal</span>
+            <Logo size={20} /> <span className="hidden sm:inline">Daily Networker</span>
           </Link>
           <nav className="flex min-w-0 gap-1 overflow-x-auto [&_a]:shrink-0 [&_a]:gap-2 [&_a]:px-2.5 [&_a]:py-1.5 [&_a]:text-sm">{nav}</nav>
           <div className="ml-auto">

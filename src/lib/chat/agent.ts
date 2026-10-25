@@ -5,7 +5,7 @@ import { must, type Ctx } from "../supabase";
 import type { ChatCard, ChatFrame, ChatRow } from "./cards";
 import { runTool, TOOL_LABELS, TOOLS } from "./tools";
 
-// The chat: Haiku with WarmSignal's tools, in a manual streaming tool loop. Two threads:
+// The chat: Haiku with Daily Networker's tools, in a manual streaming tool loop. Two threads:
 // - "onboarding" (/onboarding): one-time setup by conversation.
 // - "main" (/chat): filling in the network. It opens by asking about people with missing data.
 // Every message (user text, assistant content, tool results) is stored append-only in chat_messages
@@ -23,7 +23,7 @@ export const OPEN_MARKER = "[Open]";
 
 export type ChatMode = "onboarding" | "main";
 
-const COMMON = `You are WarmSignal, a relationship assistant in a chat. WarmSignal helps the user become a super connector: by giving first (making useful introductions and checking in at the right moments), they earn referrals and new business.
+const COMMON = `You are Daily Networker, a relationship assistant in a chat. Daily Networker helps the user become a super connector: by giving first (making useful introductions and checking in at the right moments), they earn referrals and new business.
 
 How you write:
 - One to three short sentences, then at most one question. Plain text: no markdown headings, bold, or tables. A short "- " list is fine.

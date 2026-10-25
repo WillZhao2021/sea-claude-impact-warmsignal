@@ -3,7 +3,7 @@ import type { MappedContact } from "@/app/onboarding/actions";
 import { LINKEDIN_MAX, parseLinkedInConnections } from "@/lib/linkedin";
 
 // Client-side CSV handling for onboarding: parse, guess which column is which, and map
-// relationship labels ("warm", "referral", "4") onto WarmSignal's 1–5 relationship strength.
+// relationship labels ("warm", "referral", "4") onto Daily Networker's 1–5 relationship strength.
 
 export const FIELDS = [
   { key: "name", label: "Name", required: true },

@@ -1,8 +1,8 @@
-# WarmSignal
+# Daily Networker
 
 **Be the person who always has something valuable to give.**
 
-A relationship-intelligence briefing for Alonso (fractional CMO). Conversation notes go in; Claude extracts needs and offers with evidence; WarmSignal proposes introductions and scores them deterministically. Each morning it shows up to five opportunities to give.
+A relationship-intelligence briefing for Alonso (fractional CMO). Conversation notes go in; Claude extracts needs and offers with evidence; Daily Networker proposes introductions and scores them deterministically. Each morning it shows up to five opportunities to give.
 
 ```
 Contacts CSV + notes → Claude extraction (needs/offers + quotes) → Supabase
@@ -41,7 +41,7 @@ Any stage can run on Haiku 4.5. `src/lib/claude.ts` leaves out `effort` and the 
 
 ## Chat
 
-`/chat` is the first screen. You talk with Haiku (`ANTHROPIC_CHAT_MODEL`, which defaults to `ANTHROPIC_FAST_MODEL`), and it uses WarmSignal's tools:
+`/chat` is the first screen. You talk with Haiku (`ANTHROPIC_CHAT_MODEL`, which defaults to `ANTHROPIC_FAST_MODEL`), and it uses Daily Networker's tools:
 - **Your network:** show today's people, search, look someone up, add or update a contact
 - **Notes:** save a note, which Claude reads for needs and offers
 - **Web enrichment:** search Tavily for a contact

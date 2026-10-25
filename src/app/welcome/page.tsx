@@ -17,9 +17,9 @@ import { NetworkScene } from "@/components/landing/network-scene";
 import { Avatar, Logo } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: "WarmSignal: be the person who always has something valuable to give",
+  title: "Daily Networker: be the person who always has something valuable to give",
   description:
-    "WarmSignal reads your conversation notes, spots who in your network can help whom, and hands you a short list of introductions every morning, with the message already drafted.",
+    "Daily Networker reads your conversation notes, spots who in your network can help whom, and hands you a short list of introductions every morning, with the message already drafted.",
 };
 
 export default function WelcomePage() {
@@ -30,7 +30,7 @@ export default function WelcomePage() {
       <Principles />
       <ClosingCta />
       <footer className="border-t border-slate-100 py-8 text-center text-sm text-slate-400">
-        WarmSignal · Relationship intelligence, powered by Claude
+        Daily Networker · Relationship intelligence, powered by Claude
       </footer>
     </div>
   );
@@ -50,7 +50,7 @@ function Hero() {
 
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Link href="/welcome" className="flex items-center gap-2.5 text-xl font-bold tracking-tight">
-          <Logo /> WarmSignal
+          <Logo /> Daily Networker
         </Link>
         <div className="flex items-center gap-1 whitespace-nowrap text-sm font-medium sm:gap-2">
           <Link href="/login" className="rounded-lg px-3.5 py-2 text-white/75 transition hover:bg-white/10 hover:text-white">
@@ -77,7 +77,7 @@ function Hero() {
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-indigo-100/75">
-            WarmSignal reads your conversation notes, spots who in your network can help whom, and hands you a short list
+            Daily Networker reads your conversation notes, spots who in your network can help whom, and hands you a short list
             of introductions every morning, with the message already drafted.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
@@ -211,7 +211,7 @@ const PRINCIPLES = [
   {
     icon: Handshake,
     title: "Consent before connection",
-    body: "You ask each person first, then make the intro. WarmSignal drafts each message along the way.",
+    body: "You ask each person first, then make the intro. Daily Networker drafts each message along the way.",
   },
   {
     icon: ListChecks,
@@ -302,7 +302,7 @@ function ClosingCta() {
             Your network already has the answers. Start connecting them.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-indigo-100/70">
-            WarmSignal is in an invite-only pilot. Have a code? Create your account and load a demo network in one click.
+            Daily Networker is in an invite-only pilot. Have a code? Create your account and load a demo network in one click.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link

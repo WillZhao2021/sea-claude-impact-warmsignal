@@ -390,7 +390,7 @@ function DeckDone({
         </div>
         <h2 className="mt-4 text-lg font-semibold text-slate-900">Everyone close is warm</h2>
         <p className="mt-1 max-w-sm text-sm text-slate-500">
-          Nobody you know well is overdue for a catch-up, apart from the people on Today. Log your conversations on the Contacts page so WarmSignal knows who you&apos;ve seen.
+          Nobody you know well is overdue for a catch-up, apart from the people on Today. Log your conversations on the Contacts page so Daily Networker knows who you&apos;ve seen.
         </p>
       </div>
     );

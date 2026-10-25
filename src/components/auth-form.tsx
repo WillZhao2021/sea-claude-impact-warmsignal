@@ -27,12 +27,12 @@ export function AuthForm({
       />
       <div className="relative w-full max-w-sm animate-rise">
         <div className="mb-8 flex items-center justify-center gap-2.5 text-2xl font-bold tracking-tight text-slate-950">
-          <Logo size={32} /> WarmSignal
+          <Logo size={32} /> Daily Networker
         </div>
         <div className={`${card} p-8 shadow-card-lg`}>
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">{signup ? "Create your account" : "Welcome back"}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {signup ? "WarmSignal is invite-only during the pilot." : "Sign in to see today's opportunities to give."}
+            {signup ? "Daily Networker is invite-only during the pilot." : "Sign in to see today's opportunities to give."}
           </p>
           <form action={formAction} className="mt-6 space-y-3">
             <input
