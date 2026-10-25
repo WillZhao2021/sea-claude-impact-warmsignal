@@ -57,7 +57,7 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   }
   const signIn = await (await userDb()).auth.signInWithPassword({ email, password });
   if (signIn.error) return fail(signIn.error.message);
-  redirect("/");
+  redirect("/onboarding");
 }
 
 export async function signInAction(_prev: AuthState, formData: FormData): Promise<AuthState> {

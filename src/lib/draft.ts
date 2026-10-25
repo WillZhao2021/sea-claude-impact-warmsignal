@@ -1,9 +1,10 @@
 import { textCall } from "./claude";
 import { buildBriefing, type Candidate } from "./briefing";
+import { getProfile, profilePrompt, type Profile, type Tone } from "./profile";
 import { must, type Ctx } from "./supabase";
 import type { DraftKind } from "./types";
 
-// FR-08: drafts Alonso can edit and send himself. One per step of a double opt-in:
+// FR-08: drafts the user can edit and send themselves. One per step of a double opt-in:
 // 1) ask the recipient, 2) ask the proposed contact, 3) introduce them.
 
 export function draftKindFor(c: Candidate): DraftKind {
@@ -12,7 +13,15 @@ export function draftKindFor(c: Candidate): DraftKind {
   return "ask_recipient";
 }
 
-const SYSTEM = `You draft short messages for Alonso, a fractional CMO who helps people in his network by making introductions. Write in his voice: warm, brief, plain, specific. No sales tone, buzzwords, emojis, or subject line. Use only the facts provided: never invent personality traits, achievements, or details. Never reveal private context or sensitivities the other person wouldn't want shared. Output only the message text.`;
+const TONE: Record<Tone, string> = {
+  warm: "warm, friendly and personal",
+  professional: "polished and professional, still human",
+  brief: "very brief and direct; shorten to the low end of the word range",
+};
+
+function system(profile: Profile | null): string {
+  return `You draft short messages for the user, who helps people in their network by making introductions. ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and never pitch the user's own services in an intro. Use only the facts provided: never invent personality traits, achievements, or details. Never reveal private context or sensitivities the other person wouldn't want shared. Output only the message text, with no signature line.`;
+}
 
 const first = (name: string) => name.split(" ")[0];
 
@@ -28,7 +37,7 @@ Sensitivities to respect: ${c.opp.concerns ?? "none recorded"}`;
     case "ask_recipient":
       return `${facts}
 
-Write a 50-90 word message to ${first(c.recipient.name)} asking whether they'd like an introduction to someone who fits their need. Describe the person enough to be compelling, but do not share their name or details unless the sensitivities allow it. Make clear Alonso will check with the other person first.`;
+Write a 50-90 word message to ${first(c.recipient.name)} asking whether they'd like an introduction to someone who fits their need. Describe the person enough to be compelling, but do not share their name or details unless the sensitivities allow it. Make clear the user will check with the other person first.`;
     case "ask_proposed":
       return `${facts}
 
@@ -40,15 +49,19 @@ Both have agreed. Write a 70-120 word double opt-in introduction email addressed
   }
 }
 
-export async function draftOutreach(c: Candidate, kind: DraftKind = draftKindFor(c)): Promise<string> {
-  return textCall({ system: SYSTEM, user: prompt(c, kind) });
+export async function draftOutreach(
+  c: Candidate,
+  kind: DraftKind = draftKindFor(c),
+  profile: Profile | null = null,
+): Promise<string> {
+  return textCall({ system: system(profile), user: prompt(c, kind) });
 }
 
 /** Returns the stored draft for the card's current step, generating and saving it if missing. */
-export async function getOrCreateDraft(ctx: Ctx, c: Candidate): Promise<string> {
+export async function getOrCreateDraft(ctx: Ctx, c: Candidate, profile?: Profile | null): Promise<string> {
   const kind = draftKindFor(c);
   if (c.opp.draft_message && c.opp.draft_kind === kind) return c.opp.draft_message;
-  const draft_message = await draftOutreach(c, kind);
+  const draft_message = await draftOutreach(c, kind, profile === undefined ? await getProfile(ctx) : profile);
   must(
     await ctx.db
       .from("opportunities")
@@ -61,6 +74,6 @@ export async function getOrCreateDraft(ctx: Ctx, c: Candidate): Promise<string> 
 
 /** Pre-generates drafts for today's recommendations so the briefing opens instantly. */
 export async function ensureDrafts(ctx: Ctx, evalDate: string): Promise<void> {
-  const { recommendations } = await buildBriefing(ctx, evalDate);
-  await Promise.all(recommendations.map((c) => getOrCreateDraft(ctx, c)));
+  const { recommendations, profile } = await buildBriefing(ctx, evalDate);
+  await Promise.all(recommendations.map((c) => getOrCreateDraft(ctx, c, profile)));
 }

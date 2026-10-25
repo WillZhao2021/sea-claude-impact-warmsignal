@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import {
   ArrowLeftRight,
@@ -32,6 +33,7 @@ import { requireCtx } from "@/lib/auth";
 import { buildBriefing, defaultEvalDate, type Candidate } from "@/lib/briefing";
 import { buildCatchUpDeck } from "@/lib/catch-up";
 import { draftKindFor, getOrCreateDraft } from "@/lib/draft";
+import { getProfile } from "@/lib/profile";
 import { WEIGHTS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,7 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
   const { date } = await searchParams;
   const evalDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : defaultEvalDate();
   const ctx = await requireCtx();
+  if (!(await getProfile(ctx))?.onboarded_at) redirect("/onboarding");
   const { count: contactCount } = await ctx.db
     .from("contacts")
     .select("id", { count: "exact", head: true })

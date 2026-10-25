@@ -27,6 +27,10 @@ export async function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.includes(request.nextUrl.pathname);
 
   if (!signedIn && !isPublic) {
+    // API callers (fetch/SSE) need a status code, not a redirect to an HTML page.
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = request.nextUrl.pathname === "/" ? "/welcome" : "/login";
     url.search = "";

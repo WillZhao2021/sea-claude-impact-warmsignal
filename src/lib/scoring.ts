@@ -79,7 +79,7 @@ export function scoreOpportunity(input: {
   const cooling = coolingScore(daysSinceInteraction);
   // Claude's read of time-sensitivity, blended with how recently the need was expressed.
   const timeliness = 0.6 * (opp.timeliness / 5) + 0.4 * recencyScore(daysSinceNote);
-  // Alonso needs familiarity with both sides to make the intro naturally.
+  // The user needs familiarity with both sides to make the intro naturally.
   const relationship = (recipient.relationship_strength + proposed.relationship_strength) / 10;
   // Evidence strength: the weaker of the need's and the match's confidence; inferred needs are capped.
   const confidence = Math.min(
@@ -113,7 +113,7 @@ export function scoreOpportunity(input: {
 /** PRD §5.8 eligibility. Returns the reason a candidate is excluded, or null if eligible. */
 export const STALE_AFTER_DAYS = 270;
 
-/** Below this, Alonso doesn't know the person well enough to vouch for an intro to them. */
+/** Below this, the user doesn't know the person well enough to vouch for an intro to them. */
 export const MIN_PROPOSED_STRENGTH = 2;
 
 export function ineligibleReason(
@@ -125,14 +125,14 @@ export function ineligibleReason(
 ): string | null {
   if (opp.give_value < MIN_GIVE_VALUE) return `Give Value ${opp.give_value}/5 is below the ${MIN_GIVE_VALUE}/5 minimum`;
   if (proposed.relationship_strength < MIN_PROPOSED_STRENGTH)
-    return `No plausible relationship path: Alonso doesn't know ${proposed.name} well enough (${proposed.relationship_strength}/5)`;
+    return `No plausible relationship path: you don't know ${proposed.name} well enough (${proposed.relationship_strength}/5)`;
   if (!opp.appropriate) return `Flagged as inappropriate${opp.concerns ? `: ${opp.concerns}` : ""}`;
   if (need.status !== "active") return `Need is ${need.status}`;
   if (need.relevant_until && need.relevant_until < evalDate) return `Need expired on ${need.relevant_until}`;
   if (daysBetween(needDate, evalDate) > STALE_AFTER_DAYS)
     return `Need was last mentioned ${daysBetween(needDate, evalDate)} days ago and is likely stale`;
   if (need.is_inferred && opp.match_confidence < 0.5) return "Need is an inference and the match evidence is weak";
-  if (opp.status === "dismissed") return "Dismissed by Alonso";
+  if (opp.status === "dismissed") return "You dismissed this";
   if (opp.status === "completed") return "Already handled";
   if (opp.status === "deferred" && (!opp.deferred_until || opp.deferred_until > evalDate))
     return `Deferred${opp.deferred_until ? ` until ${opp.deferred_until}` : ""}`;

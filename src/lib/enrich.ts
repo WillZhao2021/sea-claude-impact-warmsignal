@@ -5,7 +5,7 @@ import { must, type Ctx } from "./supabase";
 import type { Attribute, Contact, Enrichment } from "./types";
 
 // Automatic contact enrichment: Tavily web search -> Claude identity check + summary.
-// Public-web facts are stored separately from Alonso's notes and labeled unverified.
+// Public-web facts are stored separately from the user's notes and labeled unverified.
 // Only name/company/title leave the system (never note contents).
 
 const EnrichmentSchema = z.object({

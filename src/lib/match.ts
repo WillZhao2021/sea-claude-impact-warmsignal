@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { structuredCall } from "./claude";
+import { getProfile, profilePrompt } from "./profile";
 import { must, type Ctx } from "./supabase";
 import { enrichmentLine } from "./enrich";
 import type { Contact, Signal } from "./types";
@@ -11,7 +12,7 @@ import type { Contact, Signal } from "./types";
 
 export const MatchSchema = z.object({
   need_ref: z.string().describe("The N# reference of the need"),
-  proposed_ref: z.string().describe("The P# reference of the person Alonso would introduce"),
+  proposed_ref: z.string().describe("The P# reference of the person the user would introduce"),
   offer_ref: z.string().nullable().describe("The O# reference of the matching recorded offer, or null if the match is based only on their profile"),
   give_value: z.number().int().describe("0-5 rubric score"),
   match_basis: z.enum(["stated_offer", "profile_inference"]),
@@ -21,13 +22,13 @@ export const MatchSchema = z.object({
   why_proposed: z.string().describe("Max 20 words: why this person, grounded in their recorded offer or profile"),
   why_now: z.string().nullable().describe("Max 12 words, or null if there is no current trigger"),
   appropriate: z.boolean().describe("false if the intro would violate a stated preference, confidentiality, or be otherwise inappropriate"),
-  concerns: z.string().nullable().describe("Max 15 words: a preference, sensitivity, or risk Alonso must respect; null if none"),
+  concerns: z.string().nullable().describe("Max 15 words: a preference, sensitivity, or risk the user must respect; null if none"),
   missing_evidence: z.string().nullable().describe("Max 15 words: the most important unknown; null if none beyond consent"),
 });
 
 const MatchResultSchema = z.object({ matches: z.array(MatchSchema) });
 
-const SYSTEM = `You help Alonso, a fractional CMO, find introductions that give genuine value to people in his network. An introduction is directional: the RECIPIENT has a need; the PROPOSED contact can address it.
+const SYSTEM = `You help the user find introductions that give genuine value to people in their network. An introduction is directional: the RECIPIENT has a need; the PROPOSED contact can address it.
 
 Give Value rubric (0-5):
 0 no identifiable value; 1 generic possible benefit; 2 some relevance but speculative; 3 concrete alignment with an expressed need; 4 strong match to a current need; 5 highly specific, actionable, potentially high-impact.
@@ -41,7 +42,8 @@ Rules:
 - For each need, return up to 3 candidates, best first. Include a notable rejected candidate (low give_value or appropriate=false) only if it is an obvious-looking match that should NOT be made. Return nothing for a need with no plausible match.
 - Never propose the recipient themselves.
 - "public web" lines are unverified context from web search. They can support why_now or a profile_inference, but never count as a stated need or stated offer.
-- Write tersely: Alonso reads each recommendation in under 30 seconds. Respect the word limits.`;
+- The user's goal and ideal clients (below) are context for tie-breaking only. Never raise give_value because a match serves the user's own business; value to the recipient is what counts.
+- Write tersely: the user reads each recommendation in under 30 seconds. Respect the word limits.`;
 
 export function contactLine(ref: string, c: Contact) {
   const pref = c.introduction_preferences ? ` | intro preferences: ${c.introduction_preferences}` : "";
@@ -70,6 +72,7 @@ export async function findIntroductions(ctx: Ctx): Promise<{ needs: number; matc
     await supabase.from("signals").select("*, interactions(date, context)").eq("owner_id", ownerId).eq("status", "active").order("created_at"),
   );
 
+  const system = `${SYSTEM}\n\nAbout the user: ${profilePrompt(await getProfile(ctx))}`;
   const needs = signals.filter((s) => s.type === "need");
   const offers = signals.filter((s) => s.type === "offer");
   const contactById = new Map(contacts.map((c) => [c.id, c]));
@@ -104,7 +107,7 @@ export async function findIntroductions(ctx: Ctx): Promise<{ needs: number; matc
   const results = await Promise.all(
     batches.map((batch) =>
       structuredCall({
-        system: SYSTEM,
+        system,
         user: `<network>
 ${directory}
 </network>

@@ -1,9 +1,11 @@
 import { must, type Ctx } from "./supabase";
-import { ineligibleReason, scoreOpportunity, type ScoreBreakdown } from "./scoring";
+import { getProfile, type Profile } from "./profile";
+import { daysBetween, ineligibleReason, scoreOpportunity, type ScoreBreakdown } from "./scoring";
 import type { Contact, Opportunity, Signal } from "./types";
 
 // Stage E/F (PRD §8): assemble the morning briefing from stored assessments.
 
+/** Used when the user hasn't set "people per day" in onboarding. */
 export const MAX_RECOMMENDATIONS = 5;
 
 export type Candidate = {
@@ -24,6 +26,7 @@ export type Briefing = {
   /** Eligible but not shown (lower-ranked or redundant with a shown recipient/need). */
   alsoConsidered: Candidate[];
   filteredOut: Candidate[];
+  profile: Profile | null;
 };
 
 /** YYYY-MM-DD; DEMO_EVAL_DATE pins the date so demos and scores are reproducible. */
@@ -35,7 +38,7 @@ type SignalWithDate = Signal & { interactions: { date: string } };
 
 export async function buildBriefing(ctx: Ctx, evalDate: string): Promise<Briefing> {
   const { db: supabase, ownerId } = ctx;
-  const [opps, contacts, signals] = await Promise.all([
+  const [opps, contacts, signals, profile] = await Promise.all([
     supabase.from("opportunities").select("*").eq("owner_id", ownerId).then((r) => must<Opportunity[]>(r)),
     supabase.from("contacts").select("*").eq("owner_id", ownerId).then((r) => must<Contact[]>(r)),
     supabase
@@ -43,6 +46,7 @@ export async function buildBriefing(ctx: Ctx, evalDate: string): Promise<Briefin
       .select("*, interactions(date)")
       .eq("owner_id", ownerId)
       .then((r) => must<SignalWithDate[]>(r)),
+    getProfile(ctx),
   ]);
 
   const contactById = new Map(contacts.map((c) => [c.id, c]));
@@ -62,7 +66,8 @@ export async function buildBriefing(ctx: Ctx, evalDate: string): Promise<Briefin
         need,
         offer,
         score: scoreOpportunity({ opp, recipient, proposed, need, needDate: need.note_date, evalDate }),
-        excludedReason: ineligibleReason(opp, need, need.note_date, evalDate, proposed),
+        excludedReason:
+          ineligibleReason(opp, need, need.note_date, evalDate, proposed) ?? restingReason(recipient, evalDate, profile),
         reciprocal: [],
       },
     ];
@@ -79,7 +84,7 @@ export async function buildBriefing(ctx: Ctx, evalDate: string): Promise<Briefin
   const seenRecipients = new Set<string>();
   const seenPairs = new Map<string, Candidate>();
   for (const c of eligible) {
-    if (recommendations.length >= MAX_RECOMMENDATIONS) break;
+    if (recommendations.length >= (profile?.per_day ?? MAX_RECOMMENDATIONS)) break;
     if (seenRecipients.has(c.recipient.id) || seenPairs.has(pairKey(c))) continue;
     recommendations.push(c);
     seenRecipients.add(c.recipient.id);
@@ -98,5 +103,14 @@ export async function buildBriefing(ctx: Ctx, evalDate: string): Promise<Briefin
     recommendations,
     alsoConsidered,
     filteredOut: candidates.filter((c) => c.excludedReason).sort(byScore),
+    profile,
   };
+}
+
+/** Onboarding's "rest after a contact": nobody reappears until rest_days have passed since you reached out. */
+function restingReason(recipient: Contact, evalDate: string, profile: Profile | null): string | null {
+  if (!profile || !recipient.last_outreach_at) return null;
+  const days = daysBetween(recipient.last_outreach_at, evalDate);
+  if (days < 0 || days >= profile.rest_days) return null;
+  return `Resting: you reached out ${days === 0 ? "today" : `${days} day${days === 1 ? "" : "s"} ago`} (rest period ${profile.rest_days} days)`;
 }

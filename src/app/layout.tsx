@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
-import { Coffee, House, LogOut, Users } from "lucide-react";
+import { Coffee, House, LogOut, SlidersHorizontal, Users } from "lucide-react";
 import { signOutAction } from "@/app/actions";
 import { AddContactModal } from "@/components/add-contact-modal";
 import { NavLink } from "@/components/nav-link";
@@ -39,6 +39,9 @@ function AppShell({ email, children }: { email: string; children: React.ReactNod
       </NavLink>
       <NavLink href="/contacts">
         <Users className="size-5" strokeWidth={1.75} /> Contacts
+      </NavLink>
+      <NavLink href="/onboarding">
+        <SlidersHorizontal className="size-5" strokeWidth={1.75} /> Setup
       </NavLink>
     </>
   );
