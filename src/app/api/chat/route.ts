@@ -1,6 +1,6 @@
 import { after, type NextRequest } from "next/server";
 import { userDb } from "@/lib/auth";
-import { runChatTurn } from "@/lib/chat/agent";
+import { OPEN_MARKER, runChatTurn, shouldOpen, type ChatMode } from "@/lib/chat/agent";
 import type { ChatFrame } from "@/lib/chat/cards";
 import { syncContactDocuments } from "@/lib/vectors";
 
@@ -20,9 +20,13 @@ export async function POST(request: NextRequest) {
   if (!ownerId) return Response.json({ error: "Not signed in" }, { status: 401 });
 
   const body = await request.json().catch(() => null);
-  const message = typeof body?.message === "string" ? body.message.trim() : "";
+  const mode: ChatMode = body?.mode === "onboarding" ? "onboarding" : "main";
+  // `open`: the page just loaded. The assistant starts a round itself if the thread is new or idle.
+  const open = body?.open === true;
+  const message = open ? OPEN_MARKER : typeof body?.message === "string" ? body.message.trim() : "";
   if (!message) return Response.json({ error: "Empty message" }, { status: 400 });
   if (message.length > MAX_MESSAGE) return Response.json({ error: "Message is too long" }, { status: 400 });
+  if (open && !(await shouldOpen({ db, ownerId }, mode))) return Response.json({ opened: false });
 
   const encoder = new TextEncoder();
   const abort = new AbortController();
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest) {
       write(`: ${" ".repeat(2048)}\n\n`);
       const keepAlive = setInterval(() => write(": keep-alive\n\n"), 15000);
       try {
-        await runChatTurn(ctx, message, send, abort.signal);
+        await runChatTurn(ctx, mode, message, send, abort.signal);
         // Notes, new contacts and enrichment change search documents; re-embed after the response.
         after(() => syncContactDocuments(ctx).catch((e) => console.error("Contact document sync failed:", e)));
       } catch (e) {

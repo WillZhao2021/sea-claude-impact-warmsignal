@@ -27,7 +27,9 @@ type Live = { text: string; cards: ChatCard[]; tool: string | null };
 
 const STARTERS = ["Who should I talk to today?", "I just had coffee with someone", "Find someone in my network", "Help me get more referrals"];
 
-export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: boolean }) {
+type Mode = "onboarding" | "main";
+
+export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: ChatRow[]; redo?: boolean }) {
   const [rows, setRows] = useState<ChatRow[]>(initial);
   const [live, setLive] = useState<Live | null>(null);
   const [input, setInput] = useState("");
@@ -40,13 +42,16 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [rows, live]);
 
+  /** Sends a message, or with `open` asks the assistant to start a round itself (no user bubble). */
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, open = false) => {
       const message = text.trim();
-      if (!message || live) return;
+      if ((!message && !open) || live) return;
       setError(null);
-      setInput("");
-      setRows((r) => [...r, { id: `u${Date.now()}`, role: "user", text: message, cards: [] }]);
+      if (!open) {
+        setInput("");
+        setRows((r) => [...r, { id: `u${Date.now()}`, role: "user", text: message, cards: [] }]);
+      }
       const acc: Live = { text: "", cards: [], tool: null };
       setLive({ ...acc });
       const finish = () => {
@@ -57,8 +62,12 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify(open ? { mode, open: true } : { mode, message }),
         });
+        if (open && res.ok && res.headers.get("content-type")?.includes("application/json")) {
+          setLive(null); // the thread is active; nothing to open
+          return;
+        }
         if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("text/event-stream")) {
           const body = await res.json().catch(() => null);
           throw new Error(body?.error ?? `Request failed (${res.status})`);
@@ -94,16 +103,16 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
       }
       finish();
     },
-    [live],
+    [live, mode],
   );
 
-  // First visit: the assistant starts onboarding without the user having to type.
+  // On load the assistant speaks first: onboarding greets new users; the main chat asks about
+  // people with missing information (the server skips this if the conversation is still fresh).
   useEffect(() => {
-    if (!started.current && initial.length === 0 && !onboarded) {
-      started.current = true;
-      void send("Hi! I'm new here.");
-    }
-  }, [initial.length, onboarded, send]);
+    if (started.current) return;
+    started.current = true;
+    void send("", true);
+  }, [send]);
 
   async function upload(file: File | undefined) {
     if (!file || busy) return;
@@ -128,10 +137,16 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
             <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-ink-50 text-ink-600">
               <Sparkles className="size-6" />
             </div>
-            <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900">What&apos;s happening in your network?</h2>
-            <p className="mt-1 text-sm text-slate-500">Tell me about a conversation, ask who to reach out to, or drop in a contacts file.</p>
+            <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900">
+              {mode === "onboarding" ? (redo ? "Let's update your setup" : "Let's set you up") : "What's happening in your network?"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {mode === "onboarding"
+                ? "A few quick questions, then your contacts. Takes about five minutes."
+                : "Tell me about a conversation, ask who to reach out to, or drop in a contacts file."}
+            </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {STARTERS.map((s) => (
+              {mode === "main" && STARTERS.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)} className={`rounded-full px-3.5 py-1.5 text-sm ${btn.secondary}`}>
                   {s}
                 </button>
@@ -220,7 +235,7 @@ function Row({ row, act, status }: { row: ChatRow; act: Act; status?: string | n
         {row.cards.map((c, i) => (
           <CardView key={i} card={c} act={act} />
         ))}
-        {row.text && <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{row.text}</p>}
+        {row.text && <RichText text={row.text} />}
         {status && <Status label={status} />}
       </div>
     </div>
@@ -302,6 +317,8 @@ function CardView({ card, act }: { card: ChatCard; act: Act }) {
           <SignalList icon={<HandHeart className="size-4 text-emerald-600" />} label="Can offer" items={card.offers} />
         </div>
       );
+    case "choices":
+      return <Choices options={card.options} multi={card.multi} act={act} />;
     case "notice":
       return (
         <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
@@ -455,4 +472,71 @@ function ActionButton({ onClick, disabled, children }: { onClick: () => void; di
       {children}
     </button>
   );
+}
+
+function Choices({ options, multi, act }: { options: string[]; multi: boolean; act: Act }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sent, setSent] = useState(false);
+  const choose = (o: string) => {
+    if (sent || act.busy) return;
+    if (!multi) {
+      setSent(true);
+      setPicked([o]);
+      act.send(o);
+    } else setPicked((p) => (p.includes(o) ? p.filter((x) => x !== o) : [...p, o]));
+  };
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => choose(o)}
+          disabled={sent || act.busy}
+          className={`rounded-full px-3.5 py-1.5 text-sm font-medium ring-1 transition ${
+            picked.includes(o) ? "bg-ink-600 text-white ring-ink-600" : "bg-white text-slate-700 ring-slate-200 hover:ring-ink-300"
+          } disabled:cursor-default ${sent && !picked.includes(o) ? "opacity-40" : ""}`}
+        >
+          {o}
+        </button>
+      ))}
+      {multi && !sent && (
+        <button
+          type="button"
+          disabled={!picked.length || act.busy}
+          onClick={() => {
+            setSent(true);
+            act.send(picked.join(", "));
+          }}
+          className={`rounded-full px-3.5 py-1.5 text-sm font-medium ${btn.primary} disabled:opacity-40`}
+        >
+          Done
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Plain text with light formatting: "- " bullets and **bold**, in case the model uses them. */
+function RichText({ text }: { text: string }) {
+  const inline = (line: string) =>
+    line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      /^\*\*[^*]+\*\*$/.test(part) ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong> : part,
+    );
+  const blocks: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flush = () => {
+    if (bullets.length) blocks.push(<ul key={blocks.length} className="list-disc space-y-0.5 pl-5">{bullets.map((b, i) => <li key={i}>{inline(b)}</li>)}</ul>);
+    bullets = [];
+  };
+  for (const raw of text.split("\n")) {
+    const m = raw.match(/^\s*[-*•]\s+(.*)$/);
+    if (m) bullets.push(m[1]);
+    else {
+      flush();
+      if (raw.trim()) blocks.push(<p key={blocks.length}>{inline(raw.replace(/^#+\s*/, ""))}</p>);
+    }
+  }
+  flush();
+  return <div className="space-y-2 text-sm leading-relaxed text-slate-800">{blocks}</div>;
 }

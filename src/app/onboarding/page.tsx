@@ -1,25 +1,25 @@
-import { OnboardingFlow } from "@/components/onboarding/flow";
+import { Chat } from "@/components/chat/chat";
 import { requireCtx } from "@/lib/auth";
-import { hasDemoData } from "@/lib/demo";
-import { DEFAULT_PROFILE, getProfile } from "@/lib/profile";
+import { chatRows } from "@/lib/chat/agent";
+import type { ChatRow } from "@/lib/chat/cards";
+import { getProfile } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
-// The final step runs extraction, enrichment, matching and drafting through server actions.
+// Uploads (server action) can import and match hundreds of contacts.
 export const maxDuration = 300;
 
+/**
+ * One-time setup, entirely by conversation: who you are, your goal, LinkedIn and phone contacts,
+ * your closest people. (The Me page edits the same answers as a form.)
+ */
 export default async function OnboardingPage() {
   const ctx = await requireCtx();
-  const [profile, contacts, demo] = await Promise.all([
-    getProfile(ctx),
-    ctx.db.from("contacts").select("id", { count: "exact", head: true }).eq("owner_id", ctx.ownerId),
-    hasDemoData(ctx),
-  ]);
-  return (
-    <OnboardingFlow
-      initial={{ ...DEFAULT_PROFILE, ...profile }}
-      existingContacts={contacts.count ?? 0}
-      hasDemo={demo}
-      webEnrichment={Boolean(process.env.TAVILY_API_KEY)}
-    />
-  );
+  let rows: ChatRow[] = [];
+  try {
+    rows = await chatRows(ctx, "onboarding");
+  } catch (e) {
+    console.error("Onboarding chat unavailable:", e);
+  }
+  const profile = await getProfile(ctx);
+  return <Chat mode="onboarding" initial={rows} redo={!!profile?.onboarded_at} />;
 }
