@@ -41,7 +41,7 @@ export async function proxy(request: NextRequest) {
   }
   if (signedIn && isPublic) {
     const url = request.nextUrl.clone();
-    url.pathname = "/chat";
+    url.pathname = "/";
     url.search = "";
     return NextResponse.redirect(url);
   }

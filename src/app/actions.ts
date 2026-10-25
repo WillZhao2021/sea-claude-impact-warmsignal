@@ -70,7 +70,8 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
     password: String(formData.get("password") ?? ""),
   });
   if (error) return { error: "Wrong email or password", email };
-  redirect("/chat");
+  // Today is home; it sends anyone who hasn't finished setup to the chat.
+  redirect("/");
 }
 
 export async function signOutAction() {

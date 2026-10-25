@@ -31,11 +31,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 function AppShell({ email, children }: { email: string; children: React.ReactNode }) {
   const nav = (
     <>
-      <NavLink href="/chat">
-        <MessageCircle className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Chat</span>
-      </NavLink>
       <NavLink href="/">
         <House className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Today</span>
+      </NavLink>
+      <NavLink href="/chat">
+        <MessageCircle className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Chat</span>
       </NavLink>
       <NavLink href="/catch-up">
         <Coffee className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Keep warm</span>
