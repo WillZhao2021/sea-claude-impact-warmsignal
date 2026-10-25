@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { addNoteAction } from "@/app/actions";
 import { EnrichPanel } from "@/components/enrich-panel";
-import { AttributeChips, EnrichmentView } from "@/components/enrichment-view";
+import { AttributeChips, EnrichmentView, GoalFitChip } from "@/components/enrichment-view";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, input, SignalBars } from "@/components/ui";
 import { defaultEvalDate } from "@/lib/briefing";
@@ -75,6 +75,7 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
             <Chip tone="slate">
               <Clock className="size-3" /> Last spoke {formatDate(contact.last_interaction_date)}
             </Chip>
+            <GoalFitChip fit={contact.enrichment?.network?.goal_fit} showNone />
           </div>
           {contact.enrichment?.status === "matched" && !!contact.enrichment.attributes?.length && (
             <AttributeChips attributes={contact.enrichment.attributes} />

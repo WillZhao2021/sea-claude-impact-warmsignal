@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Globe, Info, Sparkles, Upload, Wand2 } from "lucide-react";
 import { enrichAllAction, importCsvAction, loadDemoAction, removeDemoAction } from "@/app/actions";
-import { AttributeChips } from "@/components/enrichment-view";
+import { AttributeChips, GoalFitChip } from "@/components/enrichment-view";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, PageHeader, SignalBars } from "@/components/ui";
 import { requireCtx } from "@/lib/auth";
@@ -127,7 +127,8 @@ export default async function ContactsPage() {
                     <div className="flex flex-wrap gap-1 xl:flex-nowrap">
                       {needs > 0 && <Chip tone="violet">{needs} need{needs > 1 && "s"}</Chip>}
                       {offers > 0 && <Chip tone="sky">{offers} offer{offers > 1 && "s"}</Chip>}
-                      {needs + offers === 0 && <span className="text-slate-300">—</span>}
+                      <GoalFitChip fit={c.enrichment?.network?.goal_fit} />
+                      {needs + offers === 0 && !c.enrichment?.network?.goal_fit && <span className="text-slate-300">—</span>}
                     </div>
                   </td>
                   <td className="hidden px-3 py-3 lg:table-cell">

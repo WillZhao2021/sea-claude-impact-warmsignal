@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BadgeCheck, ExternalLink, HandHeart, Lightbulb, Network, TriangleAlert } from "lucide-react";
-import type { Attribute, Enrichment, NetworkMap } from "@/lib/types";
+import { ArrowLeft, ArrowRight, BadgeCheck, ExternalLink, HandHeart, Lightbulb, Network, Target, TriangleAlert } from "lucide-react";
+import type { Attribute, Enrichment, GoalFit, NetworkMap } from "@/lib/types";
 import { Avatar, Chip } from "./ui";
 
 // Presentational pieces for a contact's enrichment. Used for the saved profile (server) and,
@@ -55,6 +55,36 @@ export function SignalList({ signals }: { signals: { kind?: string; text?: strin
           </li>
         ))}
     </ul>
+  );
+}
+
+const GOAL_FIT = {
+  strong: { label: "Strong fit with your goal", chip: "Strong goal fit", tone: "bg-emerald-50 text-emerald-800 ring-emerald-200/70" },
+  some: { label: "Some fit with your goal", chip: "Some goal fit", tone: "bg-sky-50 text-sky-800 ring-sky-200/70" },
+  none: { label: "Not related to your goal", chip: "No goal fit", tone: "bg-slate-100 text-slate-600 ring-slate-200" },
+} as const;
+
+/** Small chip for headers and lists. Hidden for "none" unless asked, to keep lists quiet. */
+export function GoalFitChip({ fit, showNone = false }: { fit: GoalFit | undefined; showNone?: boolean }) {
+  if (!fit || (fit.level === "none" && !showNone)) return null;
+  const f = GOAL_FIT[fit.level];
+  return (
+    <span title={fit.why} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${f.tone}`}>
+      <Target className="size-3" /> {f.chip}
+    </span>
+  );
+}
+
+export function GoalFitCard({ fit }: { fit: Partial<GoalFit> }) {
+  if (!fit.level) return null;
+  const f = GOAL_FIT[fit.level];
+  return (
+    <div className={`animate-rise rounded-xl px-3 py-2.5 ring-1 ring-inset ${f.tone}`}>
+      <div className="flex items-center gap-1.5 text-xs font-semibold">
+        <Target className="size-3.5" /> {f.label}
+      </div>
+      {fit.why && <p className="mt-0.5 text-xs leading-relaxed opacity-90">{fit.why}</p>}
+    </div>
   );
 }
 
@@ -158,6 +188,11 @@ export function NetworkView({ network, firstName }: { network: NetworkMap; first
   const empty = !network.intros.length && !network.ideas.length && !network.overlaps.length;
   return (
     <>
+      {network.goal_fit && (
+        <Section title="Your goal" icon={<Target className="size-3.5" />}>
+          <GoalFitCard fit={network.goal_fit} />
+        </Section>
+      )}
       {network.intros.length > 0 && (
         <Section title={`Introductions (${network.intros.length})`} icon={<Network className="size-3.5" />}>
           <IntroList intros={network.intros} firstName={firstName} />

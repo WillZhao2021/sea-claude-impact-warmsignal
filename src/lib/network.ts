@@ -11,6 +11,12 @@ import type { Contact, Enrichment, NetworkMap, Signal } from "./types";
 // deterministic scoring. Ideas that rest only on public-web info are shown, never saved.
 
 const NetworkSchema = z.object({
+  goal_fit: z
+    .object({
+      level: z.enum(["strong", "some", "none"]),
+      why: z.string().describe("Max 20 words, naming the concrete link to the user's goal (or why there is none)"),
+    })
+    .describe("How directly the FOCUS person relates to the user's goal (see About the user)"),
   gives: z
     .array(MatchSchema)
     .describe("Other people's recorded needs that the FOCUS person could address. proposed_ref is always the FOCUS ref."),
@@ -32,12 +38,15 @@ You are now mapping ONE person, the FOCUS, against the whole network.
 - gives: needs recorded by OTHER people that the FOCUS could address. Only include give_value >= 2.
 - receives: the FOCUS's own recorded needs (listed under FOCUS NEEDS), with the best candidates from the network.
 - ideas: connections suggested only by public-web info (for example, a funding round that makes a hiring intro timely). These are unverified: phrase each as something to ask about. Never repeat a gives/receives match here.
+- goal_fit: how directly the FOCUS relates to the user's goal (About the user). strong = directly advances it (for example an ideal client, a likely buyer of what the user offers, a referral source or partner for it); some = an indirect or plausible link; none = unrelated. Ground it in the profile, notes and public web; never guess.
+- Goal fit is reported on its own. It never changes give_value, which is about value to the recipient.
+- When choosing ideas, prefer ones that also move the user's goal forward, as long as they genuinely help the people involved.
 - Return empty arrays when nothing qualifies. Never pad.`;
 
 export type NetworkEvent =
   | { type: "mapping"; contacts: number; needs: number }
   | { type: "overlaps"; overlaps: NetworkMap["overlaps"] }
-  | { type: "network_partial"; data: Pick<NetworkMap, "intros" | "ideas"> }
+  | { type: "network_partial"; data: Pick<NetworkMap, "intros" | "ideas" | "goal_fit"> }
   | { type: "network"; network: NetworkMap; saved: number; added: number };
 
 type SignalRow = Signal & { interactions: { date: string; context: { uncertainties?: string[] } | null } };
@@ -105,7 +114,8 @@ export async function mapNetworkAndSave(
 
   const nameOf = (ref: string | null | undefined) => (ref ? (contactRef.get(ref)?.name ?? null) : null);
   // Translate refs to names before anything reaches the browser.
-  const display = (p: Partial<z.infer<typeof NetworkSchema>>): Pick<NetworkMap, "intros" | "ideas"> => ({
+  const display = (p: Partial<z.infer<typeof NetworkSchema>>): Pick<NetworkMap, "intros" | "ideas" | "goal_fit"> => ({
+    goal_fit: p.goal_fit?.level && p.goal_fit.why ? { level: p.goal_fit.level, why: p.goal_fit.why } : undefined,
     intros: [
       ...(p.gives ?? []).map((m) => ({ m, direction: "gives" as const, other: needRef.get(m?.need_ref)?.contact_id })),
       ...(p.receives ?? []).map((m) => ({ m, direction: "receives" as const, other: contactRef.get(m?.proposed_ref)?.id })),
@@ -202,7 +212,8 @@ ${needList(needs.filter((s) => s.contact_id !== contactId))}`,
     must(await db.from("opportunities").upsert([...unique.values()], { onConflict: "matched_need_id,proposed_contact_id" }));
   }
 
-  const shown = display({ gives, receives, ideas: out.ideas });
+  const shown = display({ gives, receives, ideas: out.ideas, goal_fit: out.goal_fit });
+  network.goal_fit = shown.goal_fit;
   network.intros = shown.intros.sort((a, b) => b.give_value - a.give_value);
   network.ideas = shown.ideas.slice(0, 4);
   emit({ type: "network", network, saved: unique.size, added });

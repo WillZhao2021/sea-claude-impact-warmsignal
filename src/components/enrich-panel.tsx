@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import type { EnrichEvent, SearchGroup } from "@/lib/enrich";
 import type { NetworkEvent } from "@/lib/network";
 import type { NetworkMap } from "@/lib/types";
-import { AttributeChips, IdeaList, IntroList, OverlapChips, Section, SignalList } from "./enrichment-view";
+import { AttributeChips, GoalFitCard, IdeaList, IntroList, OverlapChips, Section, SignalList } from "./enrichment-view";
 import { btn, Chip } from "./ui";
 
 type Frame = EnrichEvent | NetworkEvent | { type: "saved"; intros_saved: number; intros_added: number } | { type: "error"; message: string };
@@ -41,7 +41,7 @@ type Run = {
   outcome: "matched" | "no_confident_match" | null;
   scope: { contacts: number; needs: number } | null;
   overlaps: NetworkMap["overlaps"];
-  network: Pick<NetworkMap, "intros" | "ideas">;
+  network: Pick<NetworkMap, "intros" | "ideas" | "goal_fit">;
   introsSaved: number | null;
   introsAdded: number;
   error: string | null;
@@ -293,6 +293,7 @@ function LiveRun({ run, name, onRetry, onClose }: { run: Run; name: string; onRe
         }
       >
         <div className="space-y-3">
+          {run.network.goal_fit && <GoalFitCard fit={run.network.goal_fit} />}
           {run.overlaps.length > 0 && (
             <div>
               <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Common ground</div>

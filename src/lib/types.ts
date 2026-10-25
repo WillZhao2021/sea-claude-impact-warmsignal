@@ -28,8 +28,12 @@ export type Attribute = { kind: AttributeKind; label: string; source_url: string
  * `intros` rest on recorded needs and are also saved as opportunities; `ideas` rest only on
  * public-web info and are never saved as opportunities.
  */
+export type GoalFit = { level: "strong" | "some" | "none"; why: string };
+
 export type NetworkMap = {
   mapped_at: string;
+  /** How directly this person relates to the user's goal. Shown on its own; never part of give_value. */
+  goal_fit?: GoalFit;
   intros: {
     direction: "gives" | "receives";
     other_contact_id: string;
