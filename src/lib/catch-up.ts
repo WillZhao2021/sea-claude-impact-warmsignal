@@ -1,7 +1,7 @@
 import { textCall } from "./claude";
 import { buildBriefing, type Briefing } from "./briefing";
 import { TONE } from "./draft";
-import { profilePrompt, type Profile } from "./profile";
+import { profilePrompt, signOffInstruction, type Profile } from "./profile";
 import { coolingScore, daysBetween, MIN_PROPOSED_STRENGTH, STALE_AFTER_DAYS } from "./scoring";
 import { must, type Ctx } from "./supabase";
 import { buildToday } from "./today";
@@ -151,7 +151,7 @@ const PURPOSE: Record<DraftMode, string> = {
 };
 
 function system(profile: Profile | null, mode: DraftMode): string {
-  return `You draft short messages for the user, suggesting they and someone in their network meet up (coffee, lunch, or a call). ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and don't pitch the user's services. Use only the facts provided: never invent shared history, personality traits, or details. ${PURPOSE[mode]} Never reveal private context or sensitivities. Output only the message text, with no signature line.`;
+  return `You draft short messages for the user, suggesting they and someone in their network meet up (coffee, lunch, or a call). ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and don't pitch the user's services. Use only the facts provided: never invent shared history, personality traits, or details. ${PURPOSE[mode]} Never reveal private context or sensitivities. Output only the message text. ${signOffInstruction(profile)}`;
 }
 
 function prompt(card: CatchUpCard, c: Contact, mode: DraftMode): string {
