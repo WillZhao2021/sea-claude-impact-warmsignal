@@ -57,10 +57,9 @@ export function signalLine(ref: string, s: Signal) {
   return `${ref} [${s.category}] ${s.description} (${flags}) - evidence: "${s.supporting_text}"`;
 }
 
-/** The matching rubric and rules, for other callers that assess introductions (e.g. network mapping). */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- per-user context (profile) will use ctx
-export async function matchSystem(_ctx: Ctx): Promise<string> {
-  return SYSTEM;
+/** Matching instructions plus who the user is (offer, goal, ideal clients). Shared by every matching path. */
+export async function matchSystem(ctx: Ctx): Promise<string> {
+  return `${SYSTEM}\n\nAbout the user: ${profilePrompt(await getProfile(ctx))}`;
 }
 
 export async function findIntroductions(ctx: Ctx): Promise<{ needs: number; matches: number }> {
@@ -72,7 +71,7 @@ export async function findIntroductions(ctx: Ctx): Promise<{ needs: number; matc
     await supabase.from("signals").select("*, interactions(date, context)").eq("owner_id", ownerId).eq("status", "active").order("created_at"),
   );
 
-  const system = `${SYSTEM}\n\nAbout the user: ${profilePrompt(await getProfile(ctx))}`;
+  const system = await matchSystem(ctx);
   const needs = signals.filter((s) => s.type === "need");
   const offers = signals.filter((s) => s.type === "offer");
   const contactById = new Map(contacts.map((c) => [c.id, c]));
