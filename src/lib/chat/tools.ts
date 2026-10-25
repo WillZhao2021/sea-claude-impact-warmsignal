@@ -284,7 +284,7 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, signal?: A
     }
     case "finish_onboarding": {
       await saveProfile(ctx, { onboarded_at: new Date().toISOString() });
-      return { text: "Onboarding complete.", cards: [{ type: "notice", text: "Setup complete. Your Today page is ready.", href: "/" }] };
+      return { text: "Onboarding complete.", cards: [{ type: "notice", text: "Setup complete. Today shows who to talk to; Chat helps you fill in your network.", href: "/" }] };
     }
     case "request_upload": {
       const kind = args.kind as "linkedin" | "phone";

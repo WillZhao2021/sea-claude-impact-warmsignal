@@ -59,8 +59,8 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   }
   const signIn = await (await userDb()).auth.signInWithPassword({ email, password });
   if (signIn.error) return fail(signIn.error.message);
-  // The chat runs onboarding: it is the first thing a new user sees.
-  redirect("/chat");
+  // Setup is a one-time conversation (/onboarding): the first thing a new user sees.
+  redirect("/onboarding");
 }
 
 export async function signInAction(_prev: AuthState, formData: FormData): Promise<AuthState> {

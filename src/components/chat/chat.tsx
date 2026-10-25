@@ -27,7 +27,9 @@ type Live = { text: string; cards: ChatCard[]; tool: string | null };
 
 const STARTERS = ["Who should I talk to today?", "I just had coffee with someone", "Find someone in my network", "Help me get more referrals"];
 
-export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: boolean }) {
+type Mode = "onboarding" | "main";
+
+export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: ChatRow[]; redo?: boolean }) {
   const [rows, setRows] = useState<ChatRow[]>(initial);
   const [live, setLive] = useState<Live | null>(null);
   const [input, setInput] = useState("");
@@ -40,13 +42,16 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [rows, live]);
 
+  /** Sends a message, or with `open` asks the assistant to start a round itself (no user bubble). */
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, open = false) => {
       const message = text.trim();
-      if (!message || live) return;
+      if ((!message && !open) || live) return;
       setError(null);
-      setInput("");
-      setRows((r) => [...r, { id: `u${Date.now()}`, role: "user", text: message, cards: [] }]);
+      if (!open) {
+        setInput("");
+        setRows((r) => [...r, { id: `u${Date.now()}`, role: "user", text: message, cards: [] }]);
+      }
       const acc: Live = { text: "", cards: [], tool: null };
       setLive({ ...acc });
       const finish = () => {
@@ -57,8 +62,12 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify(open ? { mode, open: true } : { mode, message }),
         });
+        if (open && res.ok && res.headers.get("content-type")?.includes("application/json")) {
+          setLive(null); // the thread is active; nothing to open
+          return;
+        }
         if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("text/event-stream")) {
           const body = await res.json().catch(() => null);
           throw new Error(body?.error ?? `Request failed (${res.status})`);
@@ -94,16 +103,16 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
       }
       finish();
     },
-    [live],
+    [live, mode],
   );
 
-  // First visit: the assistant starts onboarding without the user having to type.
+  // On load the assistant speaks first: onboarding greets new users; the main chat asks about
+  // people with missing information (the server skips this if the conversation is still fresh).
   useEffect(() => {
-    if (!started.current && initial.length === 0 && !onboarded) {
-      started.current = true;
-      void send("Hi! I'm new here.");
-    }
-  }, [initial.length, onboarded, send]);
+    if (started.current) return;
+    started.current = true;
+    void send("", true);
+  }, [send]);
 
   async function upload(file: File | undefined) {
     if (!file || busy) return;
@@ -128,10 +137,16 @@ export function Chat({ initial, onboarded }: { initial: ChatRow[]; onboarded: bo
             <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-ink-50 text-ink-600">
               <Sparkles className="size-6" />
             </div>
-            <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900">What&apos;s happening in your network?</h2>
-            <p className="mt-1 text-sm text-slate-500">Tell me about a conversation, ask who to reach out to, or drop in a contacts file.</p>
+            <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900">
+              {mode === "onboarding" ? (redo ? "Let's update your setup" : "Let's set you up") : "What's happening in your network?"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {mode === "onboarding"
+                ? "A few quick questions, then your contacts. Takes about five minutes."
+                : "Tell me about a conversation, ask who to reach out to, or drop in a contacts file."}
+            </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {STARTERS.map((s) => (
+              {mode === "main" && STARTERS.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)} className={`rounded-full px-3.5 py-1.5 text-sm ${btn.secondary}`}>
                   {s}
                 </button>
