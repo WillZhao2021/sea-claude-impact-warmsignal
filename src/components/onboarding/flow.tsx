@@ -567,9 +567,6 @@ function Welcome() {
   return (
     <>
       <div className="space-y-4">
-        <span className="flex size-14 items-center justify-center rounded-2xl bg-white shadow-card">
-          <Logo size={26} />
-        </span>
         <h1 className="text-4xl font-bold leading-[1.05] tracking-tight text-slate-950">Your network, one valuable intro a day.</h1>
         <p className="text-base text-slate-500">
           Tell us what you offer and who you want to help. WarmSignal reads your notes, spots introductions you can make, and drafts the message. You decide what gets sent.
