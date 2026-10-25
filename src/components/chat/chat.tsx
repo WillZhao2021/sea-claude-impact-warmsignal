@@ -40,7 +40,11 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
   const started = useRef(false);
   const busy = live != null || uploading;
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), [rows, live]);
+  // Braces, not an expression body: newer browsers return a Promise from smooth scrollIntoView,
+  // and React would treat a returned value as this effect's cleanup and call it.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [rows, live]);
 
   /** Sends a message, or with `open` asks the assistant to start a round itself (no user bubble). */
   const send = useCallback(
