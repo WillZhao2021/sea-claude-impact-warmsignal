@@ -83,8 +83,8 @@ The conversation is stored append-only in `chat_messages`. Phone numbers and ema
 
 ## Expected demo outcomes (sample data, eval date 2026-10-25)
 
-Strong: Sarah ← Michael (healthcare seed investor), Sarah ← Priya (enterprise health sales advisor), Grace ↔ Tom (routing software buyer/vendor), Olivia ↔ Ben (B2B podcast), David ← Elena (VP Eng, confidential, so it must be permission-first).
-Should *not* surface: Sarah ← Hannah (Series A+ only), James (the need belongs to his friend), Marcus (no stated need), Kevin (stale), Rachel (mass-intro request), Tom ← any investor (he declined investor intros).
+Strong: Sarah ← Michael (healthcare seed investor), Sarah ← Priya (enterprise health sales advisor), Grace ↔ Tom (routing software buyer/vendor), Olivia ↔ Ben (B2B podcast), David ← Elena (VP Eng, confidential, so it must be permission-first), Zoe ↔ Natalie (pre-seed consumer edtech angel), Megan ↔ Emily (B2B rebrand), Isabel ← Samuel (first SOC 2), Daniel ↔ Isabel (support platform buyer/vendor), Michael ↔ Sofia (portfolio GTM help).
+Should *not* surface: Sarah ← Hannah (Series A+ only), Sarah ← Victor (buyouts only), Sarah ← Natalie (no healthcare), James (the need belongs to his friend), Marcus, Aisha, Laura, Patrick (no stated need), Kevin (stale), Rachel (mass-intro request), Tom ← any investor (he declined investor intros).
 
 ## Team
 

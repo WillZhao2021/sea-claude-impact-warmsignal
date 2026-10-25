@@ -92,8 +92,9 @@ async function exportSnapshot(ctx: Ctx) {
   const common = ["id", "owner_id", "created_at"];
 
   const snap = {
-    note: "Processed demo dataset. Regenerate with: npm run seed -- --email <account> --reset --export",
-    contacts: demo.map((c) => omit(c, common)),
+    note:
+      "Processed demo dataset (fictional contacts + public figures). Regenerate with: npm run seed -- --email <account> --reset --export. Drafts are not included: they are generated per user, in their voice.",
+    contacts: demo.map((c) => ({ ...omit(c, common), outreach_draft: null, outreach_draft_mode: null })),
     interactions: interactions
       .filter((i) => ext.has(i.contact_id as string))
       .map((i) => ({ key: i.id, contact: ext.get(i.contact_id as string), ...omit(i, [...common, "contact_id"]) })),
@@ -120,6 +121,9 @@ async function exportSnapshot(ctx: Ctx) {
           "matched_need_id",
           "matched_offer_id",
         ]),
+        // Drafts are written per user, in their own voice and tone, not shipped in the snapshot.
+        draft_message: null,
+        draft_kind: null,
       })),
   };
   writeFileSync("data/demo_snapshot.json", JSON.stringify(snap, null, 1));

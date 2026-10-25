@@ -45,6 +45,11 @@
     "notes": "Ran into James. He mentioned that a friend of his is looking for healthcare investors, but didn't say who. Coinvault itself is doing fine and he didn't ask for anything."
   },
   {
+    "contact_id": "c010",
+    "date": "2026-06-12",
+    "notes": "Hannah said Sequel is focused on Series A and B healthcare and fintech companies with at least $2M ARR. Reiterated she doesn't look at seed deals."
+  },
+  {
     "contact_id": "c011",
     "date": "2026-08-12",
     "notes": "Olivia wants to launch a founder-led podcast for Bloom & Co to build B2B wholesale relationships. She's looking for a production agency that understands B2B and wants to launch by January."
@@ -60,9 +65,64 @@
     "notes": "Kevin said Tallgrass needs office space in Austin before their January move. Asked if I knew any commercial real estate brokers."
   },
   {
-    "contact_id": "c010",
-    "date": "2026-06-12",
-    "notes": "Hannah said Sequel is focused on Series A and B healthcare and fintech companies with at least $2M ARR. Reiterated she doesn't look at seed deals."
+    "contact_id": "c014",
+    "date": "2026-05-20",
+    "notes": "Quick call with Aisha. Kinfolk is still deciding whether to build a provider partnerships program next year - nothing concrete yet and she didn't ask for anything. Said to check back in the new year."
+  },
+  {
+    "contact_id": "c015",
+    "date": "2026-04-11",
+    "notes": "Lunch with Ryan. Clearpath has a startup practice now and he's handled a dozen seed and Series A financings this year. He offered to review term sheets for free for any founder I know who's raising - he'd rather help early than clean up a bad deal later."
+  },
+  {
+    "contact_id": "c016",
+    "date": "2026-09-28",
+    "notes": "Coffee with Sofia. Vantage Growth just finished two go-to-market engagements and has room for one or two more clients this winter. She specifically wants seed-stage, VC-backed B2B startups and asked me to send any founders or investors who need GTM help her way."
+  },
+  {
+    "contact_id": "c017",
+    "date": "2026-08-01",
+    "notes": "Dinner with Daniel. Nimbus's support team is drowning since they doubled their customer count - he's shopping for a customer support platform before January and wants something that integrates with their own product data. Asked if I knew any good vendors."
+  },
+  {
+    "contact_id": "c018",
+    "date": "2026-03-15",
+    "notes": "Laura is starting parental leave next week and will be out until summer. Promised I'd check in when she's back. Helix is running two Phase 2 trials."
+  },
+  {
+    "contact_id": "c019",
+    "date": "2026-09-05",
+    "notes": "Chris called to catch up. Summit Talent now focuses on VP-level engineering searches at fintech companies and he's placed four this year. He offered to help any founder with a hard exec engineering search, and said he's happy to just give advice even if they don't hire him."
+  },
+  {
+    "contact_id": "c020",
+    "date": "2026-06-30",
+    "notes": "Coffee with Natalie. She's writing $25-50K checks into pre-seed and seed consumer and edtech companies and wants to back more founders building for kids and families. She doesn't invest in healthcare, crypto, or B2B software."
+  },
+  {
+    "contact_id": "c021",
+    "date": "2026-02-14",
+    "notes": "Omar called. Packwise has partnerships with about 40 third-party warehouses and he offered to introduce any e-commerce founder I know who's outgrowing their fulfillment setup. He didn't need anything."
+  },
+  {
+    "contact_id": "c022",
+    "date": "2026-07-08",
+    "notes": "Coffee with Megan. Cobalt Cloud is planning a full rebrand ahead of their Series B announcement in February - new name for the product line, site, and visual identity. Their last agency didn't understand infrastructure buyers, so she's looking for a brand design studio that has done B2B tech work."
+  },
+  {
+    "contact_id": "c023",
+    "date": "2026-05-02",
+    "notes": "Ran into Jorge at a fintech meetup. Lumen just finished money transmitter licensing in 12 states and he's happy to walk any early-stage fintech founder through how they did it. He didn't ask for anything."
+  },
+  {
+    "contact_id": "c024",
+    "date": "2026-09-14",
+    "notes": "Coffee with Emily. Ardent Design just wrapped a rebrand for a developer tools company and has an opening starting in December. She wants more B2B tech clients, ideally a full rebrand rather than a one-off logo, and asked me for referrals."
+  },
+  {
+    "contact_id": "c025",
+    "date": "2026-01-20",
+    "notes": "Holiday party catch-up with Patrick. Mostly talked about his kids' hockey season and his move to the Seattle office. Nothing work-related came up."
   },
   {
     "contact_id": "c026",
@@ -70,8 +130,23 @@
     "notes": "Rachel runs a recruiting firm and asked me to introduce her to as many startup CEOs as possible so she can pitch her recruiting services."
   },
   {
-    "contact_id": "c031",
-    "date": "2026-09-12",
-    "notes": "[DEMO - fictional] Coffee with Will in South Lake Union. He's an engineer on Amazon Q in Seattle and wants to meet founders using LLMs in production for a side project on cost-efficient inference. Asked if I know anyone hiring for applied AI roles in Seattle next spring. He offered to review architecture for any startup I know that's building on AWS. Big into hackathons."
+    "contact_id": "c027",
+    "date": "2025-11-08",
+    "notes": "Quick call with Victor. Arcadia only does growth buyouts of profitable healthcare services companies, $20M+ EBITDA. He was clear they don't look at venture-stage startups or software."
+  },
+  {
+    "contact_id": "c028",
+    "date": "2026-08-25",
+    "notes": "Zoom with Isabel. Quill CX has lost two enterprise deals this quarter because they couldn't get through security reviews - they need to get SOC 2 done and nobody on the team has been through it. She'd love to talk to a security leader who's done it before. They're also looking for more mid-market customers."
+  },
+  {
+    "contact_id": "c029",
+    "date": "2026-06-18",
+    "notes": "Lunch with Samuel. He's started advising early-stage founders on their first SOC 2 and enterprise security reviews - he offered a free hour to any founder I know who's stuck on it."
+  },
+  {
+    "contact_id": "c030",
+    "date": "2026-09-30",
+    "notes": "Coffee with Zoe. Sprout Kids is raising a $1.2M pre-seed in December for their early-reading app - 8,000 families on the waitlist. She wants angels who know consumer subscriptions and edtech, not big funds yet. She's also looking for an advisor who's built a consumer brand."
   }
 ]
