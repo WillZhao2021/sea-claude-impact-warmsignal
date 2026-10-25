@@ -13,7 +13,7 @@ export type Contact = {
   last_outreach_at: string | null;
   outreach_snoozed_until: string | null;
   outreach_draft: string | null;
-  outreach_draft_mode: "keep_warm" | "reconnect" | null;
+  outreach_draft_mode: "keep_warm" | "reconnect" | "ask" | null;
   /** E.164. Private: only used for the user's own WhatsApp/SMS links, never sent to Claude or Tavily. */
   phone: string | null;
   /** Private, like phone. */

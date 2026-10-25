@@ -468,20 +468,24 @@ function PersonCard({ rank, person, evalDate }: { rank: number; person: TodayPer
 function ReconnectAction({ person, evalDate }: { person: TodayPerson; evalDate: string }) {
   const c = person.contact;
   const name = first(c.name);
+  // An Ask card gets an ask-mode draft; sending it spends one of this week's asks.
+  const askFor = person.move.kind === "ask" ? person.move.why : undefined;
   return (
     <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5">
       <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-ink-600">Next step</p>
-        <p className="font-semibold text-slate-900">Reach out to {name} and suggest a catch-up</p>
+        <p className="font-semibold text-slate-900">
+          {askFor ? `Ask ${name} for one thing` : `Reach out to ${name} and suggest a catch-up`}
+        </p>
+        {askFor && <p className="text-sm text-slate-500">{askFor}. Keep it to a single, easy-to-decline ask.</p>}
       </div>
       <Suspense fallback={<DraftSkeleton />}>
-        <ReconnectDraft contactId={c.id} evalDate={evalDate} label={`To ${name}`} />
+        <ReconnectDraft contactId={c.id} evalDate={evalDate} askFor={askFor} label={`To ${name}`} />
       </Suspense>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <form action={reconnectDecisionAction} className="flex gap-2">
           <input type="hidden" name="contact_id" value={c.id} />
           <input type="hidden" name="eval_date" value={evalDate} />
-          <input type="hidden" name="move" value={person.move.kind} />
           <SubmitButton name="decision" value="sent" pendingText="Saving…" className={btn.primary}>
             <Send className="size-4" /> Mark as sent
           </SubmitButton>
@@ -491,6 +495,7 @@ function ReconnectAction({ person, evalDate }: { person: TodayPerson; evalDate: 
         </form>
         <form action={reconnectRedraftAction}>
           <input type="hidden" name="contact_id" value={c.id} />
+          {askFor && <input type="hidden" name="ask_for" value={askFor} />}
           <input type="hidden" name="eval_date" value={evalDate} />
           <SubmitButton pendingText="Redrafting…" className={btn.ghost}>
             <RefreshCw className="size-3.5" /> Redraft
@@ -501,8 +506,19 @@ function ReconnectAction({ person, evalDate }: { person: TodayPerson; evalDate: 
   );
 }
 
-async function ReconnectDraft({ contactId, evalDate, label }: { contactId: string; evalDate: string; label: string }) {
-  const result = await getOrCreateCatchUpDraft(await requireCtx(), contactId, evalDate).then(
+async function ReconnectDraft({
+  contactId,
+  evalDate,
+  askFor,
+  label,
+}: {
+  contactId: string;
+  evalDate: string;
+  askFor?: string;
+  label: string;
+}) {
+  const ctx = await requireCtx();
+  const result = await getOrCreateCatchUpDraft(ctx, contactId, evalDate, false, askFor ? "ask" : "reconnect", askFor).then(
     (draft) => ({ draft, error: null }),
     (e: Error) => ({ draft: null, error: e.message }),
   );

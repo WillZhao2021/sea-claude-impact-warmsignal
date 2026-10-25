@@ -27,7 +27,7 @@ export const KEEP_WARM_MIN_STRENGTH = 3;
 
 const KEEP_WARM_WEIGHTS = { cooling: 0.6, relationship: 0.4 } as const;
 
-export type DraftMode = "keep_warm" | "reconnect";
+export type DraftMode = "keep_warm" | "reconnect" | "ask";
 export type ReasonKind = "give" | "need" | "news" | "last_time";
 /** Keep-warm cards and drafts use only shared history and talking points, never asks or offers. */
 const KEEP_WARM_KINDS: ReadonlySet<ReasonKind> = new Set(["last_time", "news"]);
@@ -147,15 +147,20 @@ export async function buildCatchUpDeck(ctx: Ctx, evalDate: string): Promise<Catc
 const PURPOSE: Record<DraftMode, string> = {
   reconnect:
     "If the user can offer an introduction, mention it as something they'd like to talk through, without naming the other person.",
+  ask: "This message makes exactly one clear, low-pressure ask that serves the user's goal (an introduction, a referral, advice, or a short call). Lead with something genuine about them, then the single ask, phrased so it's easy to say no. Never stack favors.",
   keep_warm:
     "This is a no-agenda check-in, purely to stay close: never ask for anything, offer introductions or services, or bring up their needs or business problems. If there's a recent public milestone, a brief congratulations is fine.",
 };
 
 function system(profile: Profile | null, mode: DraftMode): string {
-  return `You draft short messages for the user, suggesting they and someone in their network meet up (coffee, lunch, or a call). ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and don't pitch the user's services. Use only the facts provided: never invent shared history, personality traits, or details. ${PURPOSE[mode]} Never reveal private context or sensitivities. Output only the message text. ${signOffInstruction(profile)}`;
+  const task =
+    mode === "ask"
+      ? "You draft short messages for the user, asking someone in their network for one specific thing."
+      : "You draft short messages for the user, suggesting they and someone in their network meet up (coffee, lunch, or a call).";
+  return `${task} ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and don't pitch the user's services. Use only the facts provided: never invent shared history, personality traits, or details. ${PURPOSE[mode]} Never reveal private context or sensitivities. Output only the message text. ${signOffInstruction(profile)}`;
 }
 
-function prompt(card: CatchUpCard, c: Contact, mode: DraftMode): string {
+function prompt(card: CatchUpCard, c: Contact, mode: DraftMode, askFor?: string): string {
   const when = card.daysSinceMet == null ? "unknown" : `${card.daysSinceMet} days ago`;
   const label: Record<ReasonKind, string> = {
     give: "Something the user can offer them",
@@ -169,11 +174,17 @@ Last spoke: ${when}
 ${card.reasons.map((r) => `${label[r.kind]}: ${r.text}`).join("\n")}
 Sensitivities to respect: ${c.introduction_preferences ?? "none recorded"}
 
-Write a 40-80 word message to ${c.name.split(" ")[0]} suggesting they catch up in person or on a call soon. ${
+${
+    mode === "ask"
+      ? `Why they're worth asking: ${askFor ?? "they fit the user's goal"}
+
+Write a 40-80 word message to ${c.name.split(" ")[0]} that makes one specific ask drawn from the line above, tied to the user's goal. Make it easy to decline, and suggest a concrete next step (e.g. "would a 15-minute call next week work?").`
+      : `Write a 40-80 word message to ${c.name.split(" ")[0]} suggesting they catch up in person or on a call soon. ${
     mode === "keep_warm"
       ? "Keep it personal and light: refer to something from their last conversation if there is one, otherwise simply say it's been a while."
       : "Give one specific, genuine reason drawn from the facts above."
-  } Propose a concrete next step (e.g. "free for coffee in the next couple of weeks?").`;
+  } Propose a concrete next step (e.g. "free for coffee in the next couple of weeks?").`
+  }`;
 }
 
 /**
@@ -186,6 +197,8 @@ export async function getOrCreateCatchUpDraft(
   evalDate: string,
   fresh = false,
   mode: DraftMode = "reconnect",
+  /** Ask mode: why this person is worth asking (the Give / Ask reason). */
+  askFor?: string,
 ): Promise<string> {
   const { db, ownerId } = ctx;
   const contact = must<Contact>(await db.from("contacts").select("*").eq("owner_id", ownerId).eq("id", contactId).single());
@@ -194,7 +207,7 @@ export async function getOrCreateCatchUpDraft(
   const inputs = await loadInputs(ctx, evalDate);
   const reasons = reasonsFor(contact, inputs, evalDate);
   const card = toCard(contact, mode === "keep_warm" ? keepWarmOnly(reasons) : reasons, evalDate);
-  const outreach_draft = await textCall({ system: system(inputs.briefing.profile, mode), user: prompt(card, contact, mode), model: FAST_MODEL });
+  const outreach_draft = await textCall({ system: system(inputs.briefing.profile, mode), user: prompt(card, contact, mode, askFor), model: FAST_MODEL });
   must(
     await db
       .from("contacts")
@@ -209,12 +222,18 @@ export async function getOrCreateCatchUpDraft(
 
 export type CatchUpDecision = "sent" | "snooze";
 
-/** `ask`: the message was an ask (Give / Ask), which spends the weekly ask budget instead of counting as a give. */
-export async function recordDecision(ctx: Ctx, contactId: string, decision: CatchUpDecision, evalDate: string, ask = false) {
+/** A send counts as an ask (spending the weekly ask budget) only when the draft sent was an ask-mode draft. */
+export async function recordDecision(ctx: Ctx, contactId: string, decision: CatchUpDecision, evalDate: string) {
+  const { outreach_draft_mode } = must<Pick<Contact, "outreach_draft_mode">>(
+    await ctx.db.from("contacts").select("outreach_draft_mode").eq("owner_id", ctx.ownerId).eq("id", contactId).single(),
+  );
   const patch =
     decision === "sent"
       ? { last_outreach_at: evalDate, outreach_snoozed_until: null, outreach_draft: null }
       : { outreach_snoozed_until: new Date(Date.parse(evalDate) + SNOOZE_DAYS * 86_400_000).toISOString().slice(0, 10) };
   must(await ctx.db.from("contacts").update(patch).eq("owner_id", ctx.ownerId).eq("id", contactId));
-  if (decision === "sent") await logActivity(ctx, "catch_up_sent", evalDate, { contactId, detail: ask ? "ask" : undefined });
+  if (decision === "sent") await logActivity(ctx, "catch_up_sent", evalDate, {
+      contactId,
+      detail: outreach_draft_mode === "ask" ? "ask" : undefined,
+    });
 }

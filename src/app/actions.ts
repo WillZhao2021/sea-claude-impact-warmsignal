@@ -275,14 +275,21 @@ export async function redraftAction(formData: FormData) {
 export async function reconnectDecisionAction(formData: FormData) {
   const ctx = await requireCtx();
   const decision = String(formData.get("decision")) === "snooze" ? "snooze" : "sent";
-  const ask = formData.get("move") === "ask";
-  await recordDecision(ctx, String(formData.get("contact_id")), decision, evalDateFrom(formData), ask);
+  await recordDecision(ctx, String(formData.get("contact_id")), decision, evalDateFrom(formData));
   revalidatePath("/");
 }
 
 export async function reconnectRedraftAction(formData: FormData) {
   const ctx = await requireCtx();
-  await getOrCreateCatchUpDraft(ctx, String(formData.get("contact_id")), evalDateFrom(formData), true);
+  const askFor = formData.get("ask_for");
+  await getOrCreateCatchUpDraft(
+    ctx,
+    String(formData.get("contact_id")),
+    evalDateFrom(formData),
+    true,
+    askFor ? "ask" : "reconnect",
+    askFor ? String(askFor) : undefined,
+  );
   revalidatePath("/");
 }
 
@@ -318,7 +325,6 @@ export async function catchUpDecisionAction(
   }
   const ctx = await requireCtx();
   try {
-    // Keep warm is no-agenda: its sends are never asks.
     await recordDecision(ctx, contactId, decision, evalDate);
     return { ok: true, value: null };
   } catch (e) {
