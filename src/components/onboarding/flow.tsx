@@ -227,6 +227,17 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
               </span>
             </>
           )}
+          {/* Skippable: answers saved so far are kept; finish later from the Me tab. */}
+          {step !== "enrich" && (
+            <button
+              type="button"
+              onClick={() => startSaving(() => completeOnboardingAction())}
+              disabled={saving}
+              className="ml-auto shrink-0 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 transition hover:bg-white hover:text-slate-800 disabled:opacity-60"
+            >
+              Skip for now
+            </button>
+          )}
         </div>
 
         <div key={step} className={`mt-8 flex flex-col gap-6 ${back ? "animate-[rise_.4s_ease_both]" : "animate-rise"}`}>

@@ -14,7 +14,8 @@ export default async function MePage() {
     getProfile(ctx),
     ctx.db.from("contacts").select("id", { count: "exact", head: true }).eq("owner_id", ctx.ownerId),
   ]);
-  const onboarded = Boolean(profile?.onboarded_at);
+  // Skipping onboarding also sets onboarded_at; without any answers, treat it as not set up yet.
+  const onboarded = Boolean(profile?.onboarded_at) && Boolean(profile?.offers.length || profile?.goal);
   const email = ctx.email ?? "Your account";
 
   return (
