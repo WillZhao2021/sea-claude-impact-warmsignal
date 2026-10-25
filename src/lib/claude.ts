@@ -10,7 +10,8 @@ export const MATCH_MODEL = process.env.ANTHROPIC_MATCH_MODEL ?? MODEL;
 export const FAST_MODEL = process.env.ANTHROPIC_FAST_MODEL ?? "claude-haiku-4-5";
 
 let client: Anthropic | null = null;
-function anthropic(): Anthropic {
+/** Shared SDK client (also used directly by the chat agent's tool loop). */
+export function anthropic(): Anthropic {
   return (client ??= new Anthropic());
 }
 

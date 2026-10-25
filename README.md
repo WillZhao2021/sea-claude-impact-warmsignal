@@ -39,6 +39,26 @@ npm run seed -- --email you@example.com --reset --export
 
 Any stage can run on Haiku 4.5. `src/lib/claude.ts` leaves out `effort` and the server-side fallback beta for Haiku, because Haiku doesn't accept them. To make Haiku the judge, set `ANTHROPIC_MATCH_MODEL=claude-haiku-4-5`. If you do, re-check the expected demo outcomes below, because matching enforces subtle rules (investment criteria, confidentiality, declined intro types).
 
+## Chat
+
+`/chat` is the first screen. You talk with Haiku (`ANTHROPIC_CHAT_MODEL`, which defaults to `ANTHROPIC_FAST_MODEL`), and it uses WarmSignal's tools:
+- **Your network:** show today's people, search, look someone up, add or update a contact
+- **Notes:** save a note, which Claude reads for needs and offers
+- **Web enrichment:** search Tavily for a contact
+- **Drafts:** write a message, with a WhatsApp button
+
+Results appear as cards in the conversation.
+
+**Onboarding happens in the chat, once.** The assistant asks:
+1. Your name and what you offer
+2. Your goal and ideal clients
+3. Your LinkedIn `Connections.csv`
+4. Your phone contacts (vCard or Google CSV), for WhatsApp
+
+Then it finishes setup and shows Today. You can drop files into the chat at any time with the paperclip.
+
+The conversation is stored append-only in `chat_messages`. Phone numbers and emails only ever appear in cards, never in what Claude sees. The old form-based onboarding at `/onboarding` still works.
+
 ## Where things live
 
 | Concern | File |
@@ -48,6 +68,7 @@ Any stage can run on Haiku 4.5. `src/lib/claude.ts` leaves out `effort` and the 
 | **Scoring weights, cooling curve, eligibility** | `src/lib/scoring.ts` |
 | Briefing assembly, dedupe, next action | `src/lib/briefing.ts` |
 | Outreach drafts (FR-08) | `src/lib/draft.ts` |
+| **Chat** (Haiku + tools; onboarding, uploads, cards) | `src/lib/chat/`, `src/app/api/chat/route.ts`, `src/components/chat/chat.tsx` |
 | Schema | `supabase/migrations/` |
 | Sample data | `data/contacts.csv`, `data/notes.json` |
 
