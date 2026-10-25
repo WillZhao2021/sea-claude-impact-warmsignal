@@ -1,6 +1,6 @@
 import { textCall } from "./claude";
 import { buildBriefing, type Candidate } from "./briefing";
-import { getProfile, profilePrompt, type Profile, type Tone } from "./profile";
+import { getProfile, profilePrompt, signOffInstruction, type Profile, type Tone } from "./profile";
 import { must, type Ctx } from "./supabase";
 import type { DraftKind } from "./types";
 
@@ -20,7 +20,7 @@ export const TONE: Record<Tone, string> = {
 };
 
 function system(profile: Profile | null): string {
-  return `You draft short messages for the user, who helps people in their network by making introductions. ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and never pitch the user's own services in an intro. Use only the facts provided: never invent personality traits, achievements, or details. Never reveal private context or sensitivities the other person wouldn't want shared. Output only the message text, with no signature line.`;
+  return `You draft short messages for the user, who helps people in their network by making introductions. ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and never pitch the user's own services in an intro. Use only the facts provided: never invent personality traits, achievements, or details. Never reveal private context or sensitivities the other person wouldn't want shared. Output only the message text. ${signOffInstruction(profile)}`;
 }
 
 const first = (name: string) => name.split(" ")[0];

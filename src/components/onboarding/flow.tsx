@@ -170,8 +170,8 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
       case "business":
         return {
           label: "Continue",
-          onClick: () => saveAndGo("goal", ["offers", "offer_line"]),
-          disabled: !p.offers.length && !(p.offer_line ?? "").trim(),
+          onClick: () => saveAndGo("goal", ["full_name", "offers", "offer_line"]),
+          disabled: !(p.full_name ?? "").trim() || (!p.offers.length && !(p.offer_line ?? "").trim()),
         };
       case "goal":
         return { label: "Continue", onClick: () => saveAndGo("clients", ["goal"]), disabled: !p.goal };
@@ -249,6 +249,18 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
           {step === "welcome" && <Welcome />}
           {step === "business" && (
             <Section eyebrow="Step 1 · Your business" title="What do you offer?" lead="We use this to recognize who needs you and to write messages that sound like you. Pick all that apply.">
+              <label className="space-y-1.5">
+                <span className="text-sm font-semibold text-slate-700">Your name</span>
+                <input
+                  value={p.full_name ?? ""}
+                  onChange={(e) => set("full_name", e.target.value)}
+                  placeholder="e.g. Alex Rivera"
+                  autoComplete="name"
+                  maxLength={80}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-ink-500 focus:ring-4 focus:ring-ink-100"
+                />
+                <span className="block text-xs text-slate-500">Drafted messages are signed with your first name.</span>
+              </label>
               <Chips
                 options={OFFERS.map(([id, label]) => [id, label])}
                 selected={p.offers}

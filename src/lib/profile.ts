@@ -63,6 +63,7 @@ export type Goal = (typeof GOALS)[number]["id"];
 export type Tone = "warm" | "professional" | "brief";
 
 export type Profile = {
+  full_name: string | null;
   offers: string[];
   offer_line: string | null;
   goal: Goal | null;
@@ -78,6 +79,7 @@ export type Profile = {
 };
 
 export const DEFAULT_PROFILE: Profile = {
+  full_name: null,
   offers: [],
   offer_line: null,
   goal: null,
@@ -121,10 +123,19 @@ export function profilePrompt(p: Profile | null): string {
   const roles = ROLES.filter(([id]) => p.roles.includes(id)).map(([, l]) => l);
   const ideal = [p.industries.join(", "), roles.join(", ")].filter(Boolean).join("; ");
   return [
+    p.full_name ? `The user's name is ${p.full_name}.` : null,
     `The user offers: ${offerLine(p)}.`,
     goal ? `Their current goal: ${goal.name.toLowerCase()} (${goal.sub.toLowerCase()}).` : null,
     ideal ? `Their ideal clients: ${ideal}.` : null,
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+/** How drafted messages end: signed with the user's first name, or unsigned if we don't know it. */
+export function signOffInstruction(p: Profile | null): string {
+  const first = p?.full_name?.trim().split(/\s+/)[0];
+  return first
+    ? `End the message with a line containing only "${first}" as the sign-off (no "Best," or other closing word unless it fits the tone).`
+    : "Don't add a signature line.";
 }

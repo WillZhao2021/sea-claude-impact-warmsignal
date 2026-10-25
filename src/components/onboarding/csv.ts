@@ -107,8 +107,13 @@ export function toContacts(csv: ParsedCsv, map: ColumnMap, labels: Record<string
     .map((r) => {
       const status = get(r, "status");
       const guess = status ? guessWarmth(status) : null;
+      // No relationship column: leave strength unset (new people default to Warm; existing ones keep theirs).
       const strength =
-        typeof guess === "number" ? guess : WARMTH.find((w) => w.id === (labels[status] ?? guess ?? "warm"))!.strength;
+        map.status < 0
+          ? undefined
+          : typeof guess === "number"
+            ? guess
+            : WARMTH.find((w) => w.id === (labels[status] ?? guess ?? "warm"))!.strength;
       return {
         name: get(r, "name"),
         company: get(r, "company") || undefined,

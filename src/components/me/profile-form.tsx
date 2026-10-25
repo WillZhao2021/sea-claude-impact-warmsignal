@@ -13,6 +13,7 @@ import { GOALS, INDUSTRIES, OFFERS, profilePrompt, REVENUE, ROLES, type Profile,
 
 const GOAL_ICONS = { give: Gift, clients: Briefcase, referrals: Handshake, winback: Repeat, partners: Users } as const;
 const FIELDS = [
+  "full_name",
   "offers",
   "offer_line",
   "goal",
@@ -58,6 +59,17 @@ export function ProfileForm({ initial }: { initial: Profile }) {
           <Quote className="mt-0.5 size-4 shrink-0 text-ink-400" />
           {profilePrompt(p)}
         </p>
+      </FormCard>
+
+      <FormCard title="Your name" lead="Drafted messages are signed with your first name.">
+        <input
+          value={p.full_name ?? ""}
+          onChange={(e) => set("full_name", e.target.value)}
+          placeholder="e.g. Alex Rivera"
+          autoComplete="name"
+          maxLength={80}
+          className={input}
+        />
       </FormCard>
 
       <FormCard title="What you offer" lead="Used to recognize who needs you and to write messages that sound like you.">

@@ -11,6 +11,7 @@ import {
   ChevronDown,
   CircleAlert,
   ExternalLink,
+  PenLine,
   Gift,
   HeartHandshake,
   Hourglass,
@@ -102,6 +103,19 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
           </>
         }
       />
+
+      {!today.profile?.full_name && (
+        <Link
+          href="/me"
+          className={`${card} flex items-center gap-3 px-5 py-3.5 text-sm transition hover:shadow-card-lg`}
+        >
+          <PenLine className="size-4 shrink-0 text-ink-600" />
+          <span className="flex-1 text-slate-700">
+            <span className="font-semibold text-slate-900">Add your name</span> so drafted messages are signed by you.
+          </span>
+          <ArrowRight className="size-4 text-slate-400" />
+        </Link>
+      )}
 
       {n === 0 && (
         <div className={`${card} flex flex-col items-center px-6 py-14 text-center`}>

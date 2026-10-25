@@ -8,8 +8,9 @@ import { ensureDrafts } from "@/lib/draft";
 import { enrichAndSave } from "@/lib/enrich";
 import { ingestNote } from "@/lib/extract";
 import { findIntroductions } from "@/lib/match";
-import { GOALS, INDUSTRIES, OFFERS, REVENUE, ROLES, saveProfile, type Profile } from "@/lib/profile";
+import { getProfile, GOALS, INDUSTRIES, OFFERS, REVENUE, ROLES, saveProfile, type Profile } from "@/lib/profile";
 import { must } from "@/lib/supabase";
+import type { Contact } from "@/lib/types";
 
 // Onboarding runs as a series of small server actions so the client can show progress between them.
 // Every action resolves the signed-in user; contacts and notes are always written under their owner_id.
@@ -26,6 +27,7 @@ const pick = (xs: unknown, allowed: readonly string[]) =>
 export async function saveAnswersAction(answers: Partial<Profile>): Promise<void> {
   const ctx = await requireCtx();
   const patch: Partial<Profile> = {};
+  if ("full_name" in answers) patch.full_name = String(answers.full_name ?? "").trim().replace(/\s+/g, " ").slice(0, 80) || null;
   if ("offers" in answers) patch.offers = pick(answers.offers, OFFERS.map(([id]) => id));
   if ("offer_line" in answers) patch.offer_line = String(answers.offer_line ?? "").trim().slice(0, 200) || null;
   if ("goal" in answers) patch.goal = GOALS.find((g) => g.id === answers.goal)?.id ?? null;
@@ -40,8 +42,24 @@ export async function saveAnswersAction(answers: Partial<Profile>): Promise<void
   if ("gives_per_ask" in answers) patch.gives_per_ask = clamp(answers.gives_per_ask, 0, 5, 2);
   if ("rest_days" in answers) patch.rest_days = clamp(answers.rest_days, 1, 90, 14);
   if ("tone" in answers && ["warm", "professional", "brief"].includes(String(answers.tone))) patch.tone = answers.tone;
+  const before = VOICE_FIELDS.some((k) => k in patch) ? await getProfile(ctx) : null;
   await saveProfile(ctx, patch);
+
+  // Drafts are written in the user's voice; if that changed, clear unsent drafts so they're rewritten.
+  if (before && VOICE_FIELDS.some((k) => JSON.stringify(before[k]) !== JSON.stringify(patch[k]))) {
+    must(
+      await ctx.db
+        .from("opportunities")
+        .update({ draft_message: null, draft_kind: null })
+        .eq("owner_id", ctx.ownerId)
+        .neq("status", "completed"),
+    );
+    must(await ctx.db.from("contacts").update({ outreach_draft: null }).eq("owner_id", ctx.ownerId));
+  }
 }
+
+/** Profile fields that change how drafted messages read. */
+const VOICE_FIELDS = ["full_name", "tone", "offers", "offer_line"] as const;
 
 export type MappedContact = {
   name: string;
@@ -68,31 +86,60 @@ export async function importContactsAction(
     .filter((r) => r.name);
   if (!clean.length) return { imported: 0, contactIds: [], noteJobs: [] };
 
-  const key = (r: MappedContact) => `csv:${r.name.toLowerCase()}|${(r.company ?? "").trim().toLowerCase()}`;
+  // Same person = same normalized name + company, however they were first added
+  // (demo, the Add contact form, an earlier CSV or LinkedIn import).
+  const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  const key = (name: string, company: string | null | undefined) => `${norm(name)}|${norm(company)}`;
   const text = (s: string | undefined, max: number) => (s ?? "").trim().slice(0, max) || null;
-  const byKey = new Map(clean.map((r) => [key(r), r])); // last row wins for duplicate people
+  const byKey = new Map(clean.map((r) => [key(r.name, r.company), r])); // last row wins for duplicate people
 
-  const saved = must<{ id: string; external_id: string }[]>(
-    await ctx.db
-      .from("contacts")
-      .upsert(
-        [...byKey.entries()].map(([external_id, r]) => ({
-          owner_id: ctx.ownerId,
-          external_id,
-          name: r.name,
-          company: text(r.company, 120),
-          title: text(r.title, 120),
-          industry: text(r.industry, 80),
-          relationship_strength: clamp(r.strength, 1, 5, 3),
-          last_interaction_date: r.last_contacted && ISO.test(r.last_contacted) ? r.last_contacted : null,
-          introduction_preferences: text(r.introduction_preferences, 300),
-        })),
-        { onConflict: "owner_id,external_id" },
-      )
-      .select("id, external_id"),
-  );
+  const existing = must<Contact[]>(await ctx.db.from("contacts").select("*").eq("owner_id", ctx.ownerId));
+  const existingByKey = new Map(existing.map((c) => [key(c.name, c.company), c]));
 
-  const idFor = new Map(saved.map((c) => [c.external_id, c.id]));
+  const idFor = new Map<string, string>();
+  const inserts: Record<string, unknown>[] = [];
+  for (const [k, r] of byKey) {
+    const lastContacted = r.last_contacted && ISO.test(r.last_contacted) ? r.last_contacted : null;
+    const match = existingByKey.get(k);
+    if (!match) {
+      inserts.push({
+        owner_id: ctx.ownerId,
+        external_id: `csv:${k}`,
+        name: r.name,
+        company: text(r.company, 120),
+        title: text(r.title, 120),
+        industry: text(r.industry, 80),
+        relationship_strength: clamp(r.strength, 1, 5, 3),
+        last_interaction_date: lastContacted,
+        introduction_preferences: text(r.introduction_preferences, 300),
+      });
+      continue;
+    }
+    // Existing person: fill gaps and take newer facts from the file, never blank anything out.
+    idFor.set(k, match.id);
+    const patch: Partial<Contact> = {};
+    if (!match.title && text(r.title, 120)) patch.title = text(r.title, 120);
+    if (!match.industry && text(r.industry, 80)) patch.industry = text(r.industry, 80);
+    if (!match.introduction_preferences && text(r.introduction_preferences, 300))
+      patch.introduction_preferences = text(r.introduction_preferences, 300);
+    if (r.strength !== undefined) patch.relationship_strength = clamp(r.strength, 1, 5, match.relationship_strength);
+    if (lastContacted && (!match.last_interaction_date || lastContacted > match.last_interaction_date))
+      patch.last_interaction_date = lastContacted;
+    if (Object.keys(patch).length) {
+      must(await ctx.db.from("contacts").update(patch).eq("owner_id", ctx.ownerId).eq("id", match.id));
+    }
+  }
+
+  if (inserts.length) {
+    const saved = must<{ id: string; external_id: string }[]>(
+      await ctx.db
+        .from("contacts")
+        .upsert(inserts, { onConflict: "owner_id,external_id", ignoreDuplicates: true })
+        .select("id, external_id"),
+    );
+    for (const c of saved) idFor.set(c.external_id.replace(/^csv:/, ""), c.id);
+  }
+
   const noteJobs = [...byKey.entries()].flatMap(([k, r]) => {
     const notes = (r.notes ?? "").trim().slice(0, 4000);
     const id = idFor.get(k);
@@ -100,7 +147,7 @@ export async function importContactsAction(
     const date = r.last_contacted && ISO.test(r.last_contacted) && r.last_contacted <= today ? r.last_contacted : today;
     return [{ id, date, notes }];
   });
-  return { imported: saved.length, contactIds: saved.map((c) => c.id), noteJobs };
+  return { imported: idFor.size, contactIds: [...idFor.values()], noteJobs };
 }
 
 /** Runs Claude extraction on a batch of notes, in parallel. Skips notes that were already logged. */
