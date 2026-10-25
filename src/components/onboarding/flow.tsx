@@ -216,7 +216,7 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
             </button>
           ) : (
             <span className="flex items-center gap-2 text-base font-bold tracking-tight text-slate-950">
-              <Logo size={20} /> WarmSignal
+              <Logo size={20} /> Daily Networker
             </span>
           )}
           {index > 0 && (
@@ -280,7 +280,7 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
             </Section>
           )}
           {step === "goal" && (
-            <Section eyebrow="Step 2 · Goal" title="What do you want from your network right now?" lead="This decides which introductions break ties and how drafts are framed. WarmSignal always leads with giving.">
+            <Section eyebrow="Step 2 · Goal" title="What do you want from your network right now?" lead="This decides which introductions break ties and how drafts are framed. Daily Networker always leads with giving.">
               <div className="space-y-2.5">
                 {GOALS.map((g) => {
                   const Icon = GOAL_ICONS[g.id];
@@ -475,7 +475,7 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
                         <span className="flex items-center gap-1.5 font-semibold text-slate-800">
                           <Globe className="size-4 text-ink-600" /> Look people up on the public web
                         </span>
-                        <span className="text-slate-500">Searches each person&apos;s name, title and company to add recent news. Notes never leave WarmSignal for this.</span>
+                        <span className="text-slate-500">Searches each person&apos;s name, title and company to add recent news. Notes never leave Daily Networker for this.</span>
                       </span>
                     </label>
                   )}
@@ -613,7 +613,7 @@ function Welcome() {
       <div className="space-y-4">
         <h1 className="text-4xl font-bold leading-[1.05] tracking-tight text-slate-950">Your network, one valuable intro a day.</h1>
         <p className="text-base text-slate-500">
-          Tell us what you offer and who you want to help. WarmSignal reads your notes, spots introductions you can make, and drafts the message. You decide what gets sent.
+          Tell us what you offer and who you want to help. Daily Networker reads your notes, spots introductions you can make, and drafts the message. You decide what gets sent.
         </p>
       </div>
       <div aria-hidden className="space-y-2.5">

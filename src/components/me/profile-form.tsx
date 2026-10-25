@@ -54,7 +54,7 @@ export function ProfileForm({ initial }: { initial: Profile }) {
 
   return (
     <div className="space-y-6 pb-24">
-      <FormCard title="How WarmSignal describes you" lead="This is the context Claude gets when it ranks introductions and drafts your messages.">
+      <FormCard title="How Daily Networker describes you" lead="This is the context Claude gets when it ranks introductions and drafts your messages.">
         <p className="flex gap-3 rounded-xl bg-ink-50/60 px-4 py-3 text-sm leading-relaxed text-ink-900">
           <Quote className="mt-0.5 size-4 shrink-0 text-ink-400" />
           {profilePrompt(p)}
@@ -86,7 +86,7 @@ export function ProfileForm({ initial }: { initial: Profile }) {
         </label>
       </FormCard>
 
-      <FormCard title="Your goal right now" lead="Breaks ties between introductions and frames your drafts. WarmSignal always leads with giving.">
+      <FormCard title="Your goal right now" lead="Breaks ties between introductions and frames your drafts. Daily Networker always leads with giving.">
         <div className="grid gap-2.5 sm:grid-cols-2">
           {GOALS.map((g) => {
             const Icon = GOAL_ICONS[g.id];
@@ -126,7 +126,7 @@ export function ProfileForm({ initial }: { initial: Profile }) {
         </Group>
       </FormCard>
 
-      <FormCard title="Reach-out rhythm" lead="How often WarmSignal nudges you, and how your drafts sound.">
+      <FormCard title="Reach-out rhythm" lead="How often Daily Networker nudges you, and how your drafts sound.">
         <div className="grid gap-6 md:grid-cols-2">
           <Slider label="Introductions per day" value={p.per_day} min={1} max={10} format={(v) => `${v} ${v === 1 ? "person" : "people"}`} onChange={(v) => set("per_day", v)} />
           <Slider label="Asks per week, at most" value={p.asks_per_week} min={0} max={5} format={(v) => (v === 0 ? "no asks" : `${v} per week`)} onChange={(v) => set("asks_per_week", v)} />

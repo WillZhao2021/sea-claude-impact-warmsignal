@@ -5,7 +5,7 @@ import { matchPhonebook, parsePhonebook, type PhonebookResult } from "./phoneboo
 import { must, type Ctx } from "./supabase";
 
 // FR-01: CSV import, three ways:
-// - WarmSignal's own format (has contact_id): contact_id,name,company,title,industry,
+// - Daily Networker's own format (has contact_id): contact_id,name,company,title,industry,
 //   relationship_strength,last_interaction_date,introduction_preferences. Upserts by contact_id.
 // - A LinkedIn connection list (official export or a tool's export): adds new people only.
 // - Any other CSV with a name column: columns guessed like onboarding's import; adds new people only.

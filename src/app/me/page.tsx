@@ -20,7 +20,7 @@ export default async function MePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Your account" title="Me" subtitle="What you offer, who you want to reach, and how WarmSignal works for you." />
+      <PageHeader eyebrow="Your account" title="Me" subtitle="What you offer, who you want to reach, and how Daily Networker works for you." />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1.4fr]">
         <section className={`${card} flex min-w-0 items-center gap-4 p-5`}>
@@ -54,7 +54,7 @@ export default async function MePage() {
               <p className="text-sm text-indigo-100/75">
                 {onboarded
                   ? "Walk through the guided setup with your answers prefilled, or import more contacts. Nothing is duplicated."
-                  : "A few questions and your contacts, then WarmSignal builds your first briefing."}
+                  : "A few questions and your contacts, then Daily Networker builds your first briefing."}
               </p>
             </div>
             <Link

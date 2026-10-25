@@ -133,7 +133,7 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
           </div>
           <h2 className="mt-4 text-lg font-semibold text-slate-900">Nothing pressing today</h2>
           <p className="mt-1 max-w-md text-sm text-slate-500">
-            That&apos;s fine: WarmSignal never pads the list. Log new conversations on the Contacts page, then click{" "}
+            That&apos;s fine: Daily Networker never pads the list. Log new conversations on the Contacts page, then click{" "}
             <span className="font-medium text-slate-700">Refresh</span>.
           </p>
         </div>
@@ -860,7 +860,7 @@ function Welcome() {
         <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-950">Your network is empty</h1>
         <p className="mt-3 leading-relaxed text-slate-500">
           Add people with <span className="font-medium text-slate-700">Add contact</span> or import a CSV on the Contacts
-          page, then log what you learn in conversations. Or explore WarmSignal with a ready-made demo network: 30
+          page, then log what you learn in conversations. Or explore Daily Networker with a ready-made demo network: 30
           fictional contacts with notes, plus 5 public figures enriched from the web.
         </p>
         <form action={loadDemoAction} className="mt-8">

@@ -26,7 +26,7 @@ export function ImportCsvForm() {
             as is. New contacts are enriched from the public web.
             <Info className="ml-1 inline size-3.5 align-[-3px] text-slate-400" />
             <span className="pointer-events-none absolute left-0 top-full z-10 mt-2 hidden w-80 rounded-lg bg-slate-900 px-3 py-2 text-xs leading-relaxed text-white shadow-lg group-hover:block">
-              Columns like name, company, title, industry and relationship are recognized automatically. WarmSignal&apos;s
+              Columns like name, company, title, industry and relationship are recognized automatically. Daily Networker&apos;s
               own format (contact_id, name, company, title, industry, relationship_strength 1–5, last_interaction_date
               YYYY-MM-DD, introduction_preferences) updates by contact_id. LinkedIn exports, including ones from
               scraping tools: up to {LINKEDIN_MAX} connections are added as new contacts. Existing contacts are never

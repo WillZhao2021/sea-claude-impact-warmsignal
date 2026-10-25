@@ -196,7 +196,7 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
             }
           }}
           rows={1}
-          placeholder="Message WarmSignal…"
+          placeholder="Message Daily Networker…"
           className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm outline-none placeholder:text-slate-400"
         />
         <button

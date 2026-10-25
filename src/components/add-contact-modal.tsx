@@ -76,7 +76,7 @@ export function AddContactModal({ defaultDate, compact = false }: { defaultDate:
 
           <label className="flex items-start gap-2 text-xs leading-relaxed text-slate-500">
             <input type="checkbox" name="consent" required className="mt-0.5 accent-ink-600" />
-            This person is OK being in WarmSignal. Their name, title and company will be searched on the public web.
+            This person is OK being in Daily Networker. Their name, title and company will be searched on the public web.
           </label>
 
           {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}

@@ -1,6 +1,6 @@
 # Contact data contract
 
-This file lists everything WarmSignal stores about a person in a user's network, along with where each item comes from, who writes it, how fresh it stays, and where it is allowed to go. Each user's rows belong to that user (`owner_id`) and are protected by RLS.
+This file lists everything Daily Networker stores about a person in a user's network, along with where each item comes from, who writes it, how fresh it stays, and where it is allowed to go. Each user's rows belong to that user (`owner_id`) and are protected by RLS.
 
 Status: ✅ = implemented · 🆕 = proposed, not yet implemented
 
