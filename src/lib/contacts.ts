@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import { guessColumns, parseCsv, statusLabels, toContacts } from "@/components/onboarding/csv";
 import { LINKEDIN_MAX, parseLinkedInConnections } from "./linkedin";
+import { matchPhonebook, parsePhonebook, type PhonebookResult } from "./phonebook";
 import { must, type Ctx } from "./supabase";
 
 // FR-01: CSV import, three ways:
@@ -129,4 +130,28 @@ async function importNew(ctx: Ctx, people: NewContact[]): Promise<number> {
     ),
   );
   return rows.size;
+}
+
+/**
+ * Address-book import (vCard or Google Contacts CSV): fills in phone and email on contacts already
+ * in the network. Never creates contacts and never overwrites a number or email already saved.
+ */
+export async function importPhonebook(
+  ctx: Ctx,
+  text: string,
+): Promise<Omit<PhonebookResult, "updates"> & { updated: number }> {
+  const book = parsePhonebook(text);
+  if (!book) throw new Error("That file isn't a vCard (.vcf) or a Google Contacts CSV export");
+  const contacts = must<{ id: string; name: string; company: string | null; phone: string | null; email: string | null }[]>(
+    await ctx.db.from("contacts").select("id, name, company, phone, email").eq("owner_id", ctx.ownerId),
+  );
+  const { updates, ambiguous, entries } = matchPhonebook(contacts, book.entries);
+  for (let i = 0; i < updates.length; i += 20) {
+    await Promise.all(
+      updates.slice(i, i + 20).map(({ id, ...patch }) =>
+        ctx.db.from("contacts").update(patch).eq("owner_id", ctx.ownerId).eq("id", id).then(must),
+      ),
+    );
+  }
+  return { updated: updates.length, ambiguous, entries };
 }
