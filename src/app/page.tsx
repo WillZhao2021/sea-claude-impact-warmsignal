@@ -19,6 +19,7 @@ import {
   Target,
   Zap,
   Filter,
+  Flame,
   Layers,
   RefreshCw,
   Send,
@@ -43,6 +44,7 @@ import { requireCtx } from "@/lib/auth";
 import { defaultEvalDate, type Candidate } from "@/lib/briefing";
 import { getOrCreateCatchUpDraft } from "@/lib/catch-up";
 import { draftKindFor, getOrCreateDraft } from "@/lib/draft";
+import { buildMomentum, CONSISTENCY_WINDOW, GIVING_WINDOW, WARM_DAYS, type Momentum } from "@/lib/momentum";
 import { getProfile } from "@/lib/profile";
 import { WEIGHTS } from "@/lib/scoring";
 import { serviceCtx } from "@/lib/supabase";
@@ -63,7 +65,7 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
     .eq("owner_id", ctx.ownerId);
   if (!contactCount) return <Welcome />;
 
-  const today = await buildToday(ctx, evalDate);
+  const [today, momentum] = await Promise.all([buildToday(ctx, evalDate), buildMomentum(ctx, evalDate)]);
   // Keep contact embeddings current for semantic fit (a no-op when nothing changed).
   const bg = serviceCtx(ctx.ownerId);
   after(() => syncContactDocuments(bg).catch((e) => console.error("syncContactDocuments failed:", e)));
@@ -116,6 +118,12 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
           <ArrowRight className="size-4 text-slate-400" />
         </Link>
       )}
+
+      <MomentumCard
+        m={momentum}
+        perDay={today.profile?.per_day ?? null}
+        keepWarmHref={evalDate === defaultEvalDate() ? "/catch-up" : `/catch-up?date=${evalDate}`}
+      />
 
       {n === 0 && (
         <div className={`${card} flex flex-col items-center px-6 py-14 text-center`}>
@@ -185,6 +193,133 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Network score (warmth, consistency, giving) and the daily outreach streak. */
+function MomentumCard({ m, perDay, keepWarmHref }: { m: Momentum; perDay: number | null; keepWarmHref: string }) {
+  const factors = [
+    ["Warmth", m.warmth, `${m.warmCount} of ${m.coreCount} close contacts in the last ${WARM_DAYS}d`],
+    ["Consistency", m.consistency, `active ${m.activeDays} of the last ${CONSISTENCY_WINDOW} days`],
+    ["Giving", m.giving, `${m.introSteps} intro ${m.introSteps === 1 ? "step" : "steps"} in ${GIVING_WINDOW}d`],
+  ] as const;
+  const cold = m.coreCount - m.warmCount;
+  const tip = {
+    warmth: `${cold} close ${cold === 1 ? "contact has" : "contacts have"} gone quiet. A short check-in brings them back.`,
+    consistency: "A little every day beats a burst: reach out to one person below.",
+    giving: "Move an introduction forward below. Giving is what people remember.",
+  }[m.focus];
+  const todayCount = m.recent.at(-1)?.count ?? 0;
+  const streakNote = m.activeToday
+    ? perDay && todayCount < perDay
+      ? `${todayCount} of ${perDay} today`
+      : `Done for today${m.longestStreak > m.streak ? ` · best ${m.longestStreak}` : ""}`
+    : m.streak > 0
+      ? "Reach out today to keep it going"
+      : "Reach out to someone today to start one";
+
+  return (
+    <section
+      aria-label="Network momentum"
+      className={`${card} grid animate-rise items-center gap-6 px-5 py-5 sm:px-6 md:grid-cols-[auto_1fr_auto]`}
+    >
+      <div className="flex items-center gap-4">
+        <ScoreRing score={m.score} />
+        <div className="md:hidden">
+          <p className="font-semibold text-slate-900">Network score</p>
+          <p className="text-sm text-slate-500">out of 100</p>
+        </div>
+      </div>
+
+      <div className="min-w-0 space-y-2.5">
+        <p className="hidden text-xs font-semibold uppercase tracking-wider text-ink-600 md:block">Network score</p>
+        <ul className="space-y-2 text-xs">
+          {factors.map(([label, value, note]) => (
+            <li key={label} className="grid grid-cols-[5.5rem_1fr] items-center gap-x-3 gap-y-0.5 sm:grid-cols-[5.5rem_8rem_1fr]">
+              <span className="font-medium text-slate-700">{label}</span>
+              <span className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <span className="block h-full rounded-full bg-ink-500" style={{ width: `${Math.max(value * 100, 2)}%` }} />
+              </span>
+              <span className="col-start-2 truncate text-slate-500 sm:col-start-auto">{note}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-sm text-slate-600">
+          {tip}
+          {m.focus === "warmth" && (
+            <>
+              {" "}
+              <Link href={keepWarmHref} className="font-medium text-ink-600 hover:text-ink-800">
+                Open Keep warm →
+              </Link>
+            </>
+          )}
+        </p>
+      </div>
+
+      <div className="border-t border-slate-100 pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-0">
+        <div className="flex items-center gap-3">
+          <span
+            className={`flex size-11 items-center justify-center rounded-xl ${
+              m.activeToday ? "bg-amber-50 text-amber-500" : "bg-slate-100 text-slate-400"
+            }`}
+          >
+            <Flame className="size-6" fill={m.activeToday ? "currentColor" : "none"} />
+          </span>
+          <div>
+            <p className="font-bold text-slate-950">
+              {m.streak > 0 ? (
+                <>
+                  <span className="text-2xl">{m.streak}</span>-day streak
+                </>
+              ) : (
+                <span className="text-lg">No streak yet</span>
+              )}
+            </p>
+            <p className="text-xs text-slate-500">{streakNote}</p>
+          </div>
+        </div>
+        <ol className="mt-3 flex gap-1" aria-label={`Outreach in the last ${CONSISTENCY_WINDOW} days`}>
+          {m.recent.map((d, i) => {
+            const label = new Date(d.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            return (
+              <li
+                key={d.date}
+                title={`${label}: ${d.count ? `${d.count} ${d.count === 1 ? "action" : "actions"}` : "no outreach"}`}
+                className={`size-3.5 rounded-[4px] ${d.count ? "bg-ink-500" : "bg-slate-100"} ${
+                  i === m.recent.length - 1 ? "ring-2 ring-ink-200 ring-offset-1" : ""
+                }`}
+              />
+            );
+          })}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+function ScoreRing({ score }: { score: number }) {
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  return (
+    <span className="relative inline-flex size-20 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 76 76" className="absolute inset-0 -rotate-90" aria-hidden>
+        <circle cx="38" cy="38" r={r} fill="none" strokeWidth="7" className="stroke-slate-100" />
+        <circle
+          cx="38"
+          cy="38"
+          r={r}
+          fill="none"
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeDasharray={`${(score / 100) * c} ${c}`}
+          className="stroke-ink-600"
+        />
+      </svg>
+      <span className="text-2xl font-bold tracking-tight text-slate-950" aria-label={`Network score ${score} out of 100`}>
+        {score}
+      </span>
+    </span>
   );
 }
 

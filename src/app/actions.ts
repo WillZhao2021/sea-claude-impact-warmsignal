@@ -12,6 +12,7 @@ import { ensureDrafts } from "@/lib/draft";
 import { enrichAndSave, enrichPending } from "@/lib/enrich";
 import { ingestNote } from "@/lib/extract";
 import { findIntroductions } from "@/lib/match";
+import { logActivity } from "@/lib/momentum";
 import { must, serviceCtx, serviceDb, type Ctx } from "@/lib/supabase";
 import type { Opportunity } from "@/lib/types";
 import { syncContactDocuments } from "@/lib/vectors";
@@ -104,6 +105,7 @@ export async function addNoteAction(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim();
   if (!notes) throw new Error("Note is empty");
   await ingestNote(ctx, contactId, date, notes);
+  await logActivity(ctx, "note_logged", defaultEvalDate(), { contactId });
   after(() => syncDocuments(ctx));
   revalidatePath(`/contacts/${contactId}`);
 }
@@ -190,6 +192,7 @@ export async function createContactAction(_prev: CreateContactState, formData: F
   if (notes) {
     try {
       await ingestNote(ctx, id, text("last_interaction_date") ?? defaultEvalDate(), notes);
+      await logActivity(ctx, "note_logged", defaultEvalDate(), { contactId: id });
     } catch (e) {
       return { error: `Contact saved, but note extraction failed: ${(e as Error).message}` };
     }
@@ -228,7 +231,8 @@ export async function findIntroductionsAction(formData: FormData) {
 /** Moves a recommendation through the double opt-in: ask recipient -> ask proposed -> intro. */
 export async function advanceAction(formData: FormData) {
   const id = String(formData.get("id"));
-  switch (String(formData.get("step"))) {
+  const step = String(formData.get("step"));
+  switch (step) {
     case "recipient_yes":
       await updateOpportunity(id, { consent_status: "pending", status: "useful" });
       break;
@@ -241,7 +245,11 @@ export async function advanceAction(formData: FormData) {
     case "intro_sent":
       await updateOpportunity(id, { status: "completed" });
       break;
+    default:
+      return;
   }
+  // Every step is a message the user sent, including an ask that got a "no".
+  await logActivity(await requireCtx(), "intro_step", defaultEvalDate(), { opportunityId: id, detail: step });
   revalidatePath("/");
 }
 
