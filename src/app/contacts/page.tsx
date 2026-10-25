@@ -59,7 +59,7 @@ export default async function ContactsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
             <tr>
-              <th className="px-5 py-3 font-medium">Name</th>
+              <th className="w-full px-4 py-3 font-medium sm:px-5">Name</th>
               <th className="hidden px-3 py-3 font-medium md:table-cell">Relationship</th>
               <th className="hidden whitespace-nowrap px-3 py-3 font-medium sm:table-cell">Last spoke</th>
               <th className="px-3 py-3 font-medium">Signals</th>
@@ -73,11 +73,12 @@ export default async function ContactsPage() {
               const offers = counts(c.id, "offer");
               return (
                 <tr key={c.id} className="group relative transition hover:bg-ink-50/40">
-                  <td className="px-5 py-3">
+                  {/* w-full + max-w-0 lets the title truncate instead of widening the table past its card. */}
+                  <td className="w-full max-w-0 px-4 py-3 sm:px-5">
                     <div className="flex items-center gap-3">
                       <Avatar name={c.name} size="md" />
                       <div className="min-w-0">
-                        <Link href={`/contacts/${c.id}`} className="font-semibold text-slate-900 after:absolute after:inset-0">
+                        <Link href={`/contacts/${c.id}`} className="block truncate font-semibold text-slate-900 after:absolute after:inset-0">
                           {c.name}
                         </Link>
                         <div className="truncate text-slate-500">{[c.title, c.company].filter(Boolean).join(", ")}</div>
@@ -94,7 +95,7 @@ export default async function ContactsPage() {
                   </td>
                   <td className="hidden whitespace-nowrap px-3 py-3 text-slate-500 sm:table-cell">{formatDate(c.last_interaction_date)}</td>
                   <td className="px-3 py-3">
-                    <div className="flex flex-wrap gap-1 xl:flex-nowrap">
+                    <div className="flex flex-wrap gap-1 whitespace-nowrap xl:flex-nowrap">
                       {needs > 0 && <Chip tone="violet">{needs} need{needs > 1 && "s"}</Chip>}
                       {offers > 0 && <Chip tone="sky">{offers} offer{offers > 1 && "s"}</Chip>}
                       <GoalFitChip fit={c.enrichment?.network?.goal_fit} />
