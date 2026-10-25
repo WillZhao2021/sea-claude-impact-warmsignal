@@ -35,7 +35,7 @@ npm run seed -- --email you@example.com --reset --export
 |---|---|---|
 | Note extraction | `ANTHROPIC_MODEL` | `claude-opus-5-5` |
 | Intro matching (the judge) | `ANTHROPIC_MATCH_MODEL` | same as `ANTHROPIC_MODEL` |
-| Web-enrichment summaries, outreach drafts | `ANTHROPIC_FAST_MODEL` | `claude-haiku-4-5` |
+| Web-enrichment summaries, intro and catch-up drafts | `ANTHROPIC_FAST_MODEL` | `claude-haiku-4-5` |
 
 Any stage can run on Haiku 4.5. `src/lib/claude.ts` leaves out `effort` and the server-side fallback beta for Haiku, because Haiku doesn't accept them. To make Haiku the judge, set `ANTHROPIC_MATCH_MODEL=claude-haiku-4-5`. If you do, re-check the expected demo outcomes below, because matching enforces subtle rules (investment criteria, confidentiality, declined intro types).
 

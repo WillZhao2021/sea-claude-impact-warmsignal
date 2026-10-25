@@ -1,4 +1,4 @@
-import { textCall } from "./claude";
+import { FAST_MODEL, textCall } from "./claude";
 import { buildBriefing, type Briefing } from "./briefing";
 import { TONE } from "./draft";
 import { profilePrompt, signOffInstruction, type Profile } from "./profile";
@@ -193,7 +193,7 @@ export async function getOrCreateCatchUpDraft(
   const inputs = await loadInputs(ctx, evalDate);
   const reasons = reasonsFor(contact, inputs, evalDate);
   const card = toCard(contact, mode === "keep_warm" ? keepWarmOnly(reasons) : reasons, evalDate);
-  const outreach_draft = await textCall({ system: system(inputs.briefing.profile, mode), user: prompt(card, contact, mode) });
+  const outreach_draft = await textCall({ system: system(inputs.briefing.profile, mode), user: prompt(card, contact, mode), model: FAST_MODEL });
   must(
     await db
       .from("contacts")
