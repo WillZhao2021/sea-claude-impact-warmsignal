@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { defaultEvalDate } from "../briefing";
 import { getOrCreateCatchUpDraft } from "../catch-up";
+import { buildMoves, type Move } from "../moves";
 import { enrichAndSave } from "../enrich";
 import { ingestNote } from "../extract";
 import { normalizePhone } from "../phonebook";
@@ -184,7 +185,7 @@ export const TOOL_LABELS: Record<string, string> = {
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const role = (c: Pick<Contact, "title" | "company">) => [c.title, c.company].filter(Boolean).join(" at ") || null;
 
-function person(c: Contact, reasons: string[] = []): PersonCard {
+function person(c: Contact, reasons: string[] = [], move?: Move): PersonCard {
   return {
     id: c.id,
     name: c.name,
@@ -193,7 +194,22 @@ function person(c: Contact, reasons: string[] = []): PersonCard {
     lastSpoke: c.last_interaction_date,
     reasons,
     phone: c.phone ?? null,
+    move,
   };
+}
+
+/** Adds the Give / Ask move to every person card that lacks one, and tells Claude what it is. */
+async function withMoves(ctx: Ctx, out: ToolOutput): Promise<ToolOutput> {
+  const people = (out.cards ?? []).flatMap((card) =>
+    card.type === "people" ? card.people : card.type === "contact" ? [card.person] : [],
+  );
+  if (!people.length) return out;
+  if (people.some((p) => !p.move)) {
+    const { moves } = await buildMoves(ctx, defaultEvalDate());
+    for (const p of people) p.move ??= moves.get(p.id);
+  }
+  const lines = people.filter((p) => p.move).map((p) => `${p.name}: ${p.move!.kind} (${p.move!.why})`);
+  return lines.length ? { ...out, text: `${out.text}\nNext move (give or ask): ${lines.join("; ")}` } : out;
 }
 
 /** One line per contact for Claude: never includes phone or email. */
@@ -270,6 +286,11 @@ type ToolName = keyof typeof Inputs;
 // ---------- executors ----------
 
 export async function runTool(ctx: Ctx, name: string, input: unknown, signal?: AbortSignal): Promise<ToolOutput> {
+  const out = await execute(ctx, name, input, signal);
+  return out.isError ? out : withMoves(ctx, out);
+}
+
+async function execute(ctx: Ctx, name: string, input: unknown, signal?: AbortSignal): Promise<ToolOutput> {
   if (!(name in Inputs)) return { text: `Unknown tool ${name}`, isError: true };
   const parsed = Inputs[name as ToolName].safeParse(input);
   if (!parsed.success) return { text: `Invalid input: ${parsed.error.issues.map((i) => i.message).join("; ")}`, isError: true };
@@ -375,7 +396,7 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, signal?: A
       if (!people.length) return { text: "Nobody is due today (no contacts, or everyone was contacted recently)." };
       return {
         text: people.map((p) => line(p.contact, p.reasons.map((r) => r.title).join("; "))).join("\n"),
-        cards: [{ type: "people", title: "Talk with today", people: people.map((p) => person(p.contact, p.reasons.map((r) => r.title))) }],
+        cards: [{ type: "people", title: "Talk with today", people: people.map((p) => person(p.contact, p.reasons.map((r) => r.title), p.move)) }],
       };
     }
     case "search_contacts": {

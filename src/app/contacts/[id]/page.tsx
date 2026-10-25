@@ -17,10 +17,11 @@ import { addNoteAction } from "@/app/actions";
 import { EnrichPanel } from "@/components/enrich-panel";
 import { AttributeChips, EnrichmentView, GoalFitChip } from "@/components/enrichment-view";
 import { SubmitButton } from "@/components/submit-button";
-import { Avatar, btn, card, Chip, formatDate, input, SignalBars } from "@/components/ui";
+import { Avatar, btn, card, Chip, formatDate, input, MoveTag, SignalBars } from "@/components/ui";
 import { defaultEvalDate } from "@/lib/briefing";
 import { requireCtx } from "@/lib/auth";
 import { REFRESH_AFTER_DAYS } from "@/lib/enrich";
+import { buildMoves } from "@/lib/moves";
 import { whatsappLink } from "@/lib/phonebook";
 import { must } from "@/lib/supabase";
 import type { Contact, Interaction, Signal } from "@/lib/types";
@@ -40,7 +41,7 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
     .maybeSingle<Contact>();
   if (!contact) notFound();
 
-  const [interactions, signals] = await Promise.all([
+  const [interactions, signals, { moves }] = await Promise.all([
     supabase
       .from("interactions")
       .select("*")
@@ -54,7 +55,9 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
       .eq("owner_id", ctx.ownerId)
       .eq("contact_id", id)
       .then((r) => must<Signal[]>(r)),
+    buildMoves(ctx, defaultEvalDate()),
   ]);
+  const move = moves.get(contact.id);
 
   return (
     <div className="space-y-6">
@@ -67,6 +70,11 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
         <div className="min-w-0 flex-1 space-y-2">
           <h1 className="text-3xl font-bold tracking-tight text-slate-950">{contact.name}</h1>
           <p className="text-slate-500">{[contact.title, contact.company].filter(Boolean).join(", ")}</p>
+          {move && (
+            <p className="flex">
+              <MoveTag move={move} withWhy />
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
             {contact.industry && (
               <Chip tone="slate">

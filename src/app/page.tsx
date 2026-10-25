@@ -13,6 +13,7 @@ import {
   ExternalLink,
   PenLine,
   Gift,
+  HandHelping,
   HeartHandshake,
   Hourglass,
   Repeat,
@@ -39,7 +40,7 @@ import {
 } from "@/app/actions";
 import { DraftBox } from "@/components/draft-box";
 import { SubmitButton } from "@/components/submit-button";
-import { Avatar, btn, card, Chip, Logo, PageHeader } from "@/components/ui";
+import { Avatar, btn, card, Chip, Logo, MoveTag, PageHeader } from "@/components/ui";
 import { requireCtx } from "@/lib/auth";
 import { defaultEvalDate, type Candidate } from "@/lib/briefing";
 import { getOrCreateCatchUpDraft } from "@/lib/catch-up";
@@ -157,9 +158,12 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
                 {today.more.map((m) => (
                   <li key={m.contact.id} className="flex items-center justify-between gap-4 py-2.5">
                     <span className="min-w-0">
-                      <Link href={`/contacts/${m.contact.id}`} className="font-medium text-slate-800 hover:text-ink-700">
-                        {m.contact.name}
-                      </Link>
+                      <span className="flex items-center gap-2">
+                        <Link href={`/contacts/${m.contact.id}`} className="font-medium text-slate-800 hover:text-ink-700">
+                          {m.contact.name}
+                        </Link>
+                        <MoveTag move={m.move} />
+                      </span>
                       <span className="block truncate text-slate-500">{m.reasons.map((r) => r.title).join(" · ")}</span>
                     </span>
                     <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600">
@@ -366,6 +370,7 @@ const REASON_STYLE: Record<ReasonKind, { icon: React.ReactNode; tone: string }> 
   cooling: { icon: <Hourglass className="size-4" />, tone: "bg-sky-50 text-sky-700 ring-sky-200/70" },
   timing: { icon: <Zap className="size-4" />, tone: "bg-amber-50 text-amber-700 ring-amber-200/70" },
   fit: { icon: <Target className="size-4" />, tone: "bg-indigo-50 text-indigo-700 ring-indigo-200/70" },
+  ask: { icon: <HandHelping className="size-4" />, tone: "bg-teal-50 text-teal-700 ring-teal-200/70" },
   relationship: { icon: <HeartHandshake className="size-4" />, tone: "bg-rose-50 text-rose-700 ring-rose-200/70" },
 };
 
@@ -385,6 +390,9 @@ function PersonCard({ rank, person, evalDate }: { rank: number; person: TodayPer
           <span className="min-w-0 flex-1">
             <span className="block text-lg font-bold tracking-tight text-slate-950 group-open:text-xl">Talk with {c.name}</span>
             <span className="block truncate text-sm text-slate-500">{[c.title, c.company].filter(Boolean).join(" · ")}</span>
+            <span className="mt-1.5 flex">
+              <MoveTag move={person.move} withWhy />
+            </span>
             <span className="mt-2 flex flex-wrap gap-1.5 group-open:hidden">
               {person.reasons.slice(0, 3).map((r) => (
                 <span key={r.kind + r.title} className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${REASON_STYLE[r.kind].tone}`}>
@@ -473,6 +481,7 @@ function ReconnectAction({ person, evalDate }: { person: TodayPerson; evalDate: 
         <form action={reconnectDecisionAction} className="flex gap-2">
           <input type="hidden" name="contact_id" value={c.id} />
           <input type="hidden" name="eval_date" value={evalDate} />
+          <input type="hidden" name="move" value={person.move.kind} />
           <SubmitButton name="decision" value="sent" pendingText="Saving…" className={btn.primary}>
             <Send className="size-4" /> Mark as sent
           </SubmitButton>
@@ -509,6 +518,7 @@ const TODAY_COLORS: Record<FactorKey, string> = {
   cooling: "bg-sky-400",
   timing: "bg-amber-400",
   fit: "bg-indigo-400",
+  ask: "bg-teal-400",
   relationship: "bg-rose-300",
 };
 

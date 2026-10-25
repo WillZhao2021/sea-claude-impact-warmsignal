@@ -209,11 +209,12 @@ export async function getOrCreateCatchUpDraft(
 
 export type CatchUpDecision = "sent" | "snooze";
 
-export async function recordDecision(ctx: Ctx, contactId: string, decision: CatchUpDecision, evalDate: string) {
+/** `ask`: the message was an ask (Give / Ask), which spends the weekly ask budget instead of counting as a give. */
+export async function recordDecision(ctx: Ctx, contactId: string, decision: CatchUpDecision, evalDate: string, ask = false) {
   const patch =
     decision === "sent"
       ? { last_outreach_at: evalDate, outreach_snoozed_until: null, outreach_draft: null }
       : { outreach_snoozed_until: new Date(Date.parse(evalDate) + SNOOZE_DAYS * 86_400_000).toISOString().slice(0, 10) };
   must(await ctx.db.from("contacts").update(patch).eq("owner_id", ctx.ownerId).eq("id", contactId));
-  if (decision === "sent") await logActivity(ctx, "catch_up_sent", evalDate, { contactId });
+  if (decision === "sent") await logActivity(ctx, "catch_up_sent", evalDate, { contactId, detail: ask ? "ask" : undefined });
 }

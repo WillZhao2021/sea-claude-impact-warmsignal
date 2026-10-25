@@ -1,3 +1,5 @@
+import { Gift, HandHelping } from "lucide-react";
+
 /** Shared visual primitives. No client state, so usable from server and client components. */
 
 export const btn = {
@@ -119,4 +121,22 @@ export function PageHeader({
 export function formatDate(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Give / Ask: the next move with a contact (src/lib/moves.ts). The reason shows on hover, or inline with `withWhy`. */
+export function MoveTag({ move, withWhy = false }: { move: { kind: "give" | "ask"; why: string }; withWhy?: boolean }) {
+  const give = move.kind === "give";
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5" title={withWhy ? undefined : move.why}>
+      <span
+        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${
+          give ? "bg-violet-50 text-violet-700 ring-violet-200/70" : "bg-teal-50 text-teal-700 ring-teal-200/70"
+        }`}
+      >
+        {give ? <Gift className="size-3" /> : <HandHelping className="size-3" />}
+        {give ? "Give" : "Ask"}
+      </span>
+      {withWhy && <span className="truncate text-xs text-slate-500">{move.why}</span>}
+    </span>
+  );
 }

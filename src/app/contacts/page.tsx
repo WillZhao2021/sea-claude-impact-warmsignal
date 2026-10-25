@@ -5,9 +5,11 @@ import { ImportCsvForm } from "@/components/import-csv-form";
 import { AttributeChips, GoalFitChip } from "@/components/enrichment-view";
 import { PhonebookImport } from "@/components/phonebook-import";
 import { SubmitButton } from "@/components/submit-button";
-import { Avatar, btn, card, Chip, formatDate, PageHeader, SignalBars } from "@/components/ui";
+import { Avatar, btn, card, Chip, formatDate, MoveTag, PageHeader, SignalBars } from "@/components/ui";
 import { requireCtx } from "@/lib/auth";
+import { defaultEvalDate } from "@/lib/briefing";
 import { hasDemoData } from "@/lib/demo";
+import { buildMoves } from "@/lib/moves";
 import { must } from "@/lib/supabase";
 import type { Contact } from "@/lib/types";
 
@@ -16,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function ContactsPage() {
   const ctx = await requireCtx();
   const supabase = ctx.db;
-  const [contacts, signals, demoLoaded] = await Promise.all([
+  const [contacts, signals, demoLoaded, { moves }] = await Promise.all([
     supabase.from("contacts").select("*").eq("owner_id", ctx.ownerId).order("name").then((r) => must<Contact[]>(r)),
     supabase
       .from("signals")
@@ -25,6 +27,7 @@ export default async function ContactsPage() {
       .eq("status", "active")
       .then((r) => must<{ contact_id: string; type: string }[]>(r)),
     hasDemoData(ctx),
+    buildMoves(ctx, defaultEvalDate()),
   ]);
   const counts = (id: string, type: string) => signals.filter((s) => s.contact_id === id && s.type === type).length;
 
@@ -82,6 +85,11 @@ export default async function ContactsPage() {
                           {c.name}
                         </Link>
                         <div className="truncate text-slate-500">{[c.title, c.company].filter(Boolean).join(", ")}</div>
+                        {moves.has(c.id) && (
+                          <div className="mt-1 flex">
+                            <MoveTag move={moves.get(c.id)!} withWhy />
+                          </div>
+                        )}
                         {c.enrichment?.status === "matched" && !!c.enrichment.attributes?.length && (
                           <div className="mt-1">
                             <AttributeChips attributes={c.enrichment.attributes} max={3} />

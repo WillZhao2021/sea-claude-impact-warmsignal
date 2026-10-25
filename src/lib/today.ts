@@ -1,17 +1,19 @@
 import { buildBriefing, type Briefing, type Candidate } from "./briefing";
-import { INDUSTRIES, type Goal, type Profile } from "./profile";
-import { coolingScore, daysBetween, MIN_PROPOSED_STRENGTH, STALE_AFTER_DAYS } from "./scoring";
+import { activeSignals, askPotential, bestAsk, goalFit, type SignalRow } from "./fit";
+import { type Goal, type Profile } from "./profile";
+import { coolingScore, daysBetween, MIN_PROPOSED_STRENGTH } from "./scoring";
+import { loadAskBudget, moveFor, type AskBudget, type Move } from "./moves";
 import { must, type Ctx } from "./supabase";
-import type { Contact, Signal } from "./types";
+import type { Contact } from "./types";
 import { profileFit, type ProfileFit } from "./vectors";
 
 // Today: the people worth talking to today, and why. An introduction you can make is one
 // reason among several; the others are a cooling relationship, something timely (a deadline
-// they mentioned, news about them), a fit with what you're looking for, and intros you've
-// already started. Every factor is computed deterministically from stored facts, so the
+// they mentioned, news about them), a fit with what you're looking for, something they could
+// give you (only while "Give before you ask" has an ask open), and intros you've already started. Every factor is computed deterministically from stored facts, so the
 // ranking is reproducible for a given date and every reason points at its evidence.
 
-export type FactorKey = "give" | "loop" | "cooling" | "timing" | "fit" | "relationship";
+export type FactorKey = "give" | "loop" | "cooling" | "timing" | "fit" | "ask" | "relationship";
 
 export const FACTOR_LABELS: Record<FactorKey, string> = {
   give: "Intro you can make",
@@ -19,16 +21,17 @@ export const FACTOR_LABELS: Record<FactorKey, string> = {
   cooling: "Time to reconnect",
   timing: "Something timely",
   fit: "Fits your goal",
+  ask: "Could help you",
   relationship: "Relationship strength",
 };
 
 /** Factor weights per onboarding goal. Each row sums to 1. */
 const WEIGHTS: Record<Goal, Record<FactorKey, number>> = {
-  give: { give: 0.4, loop: 0.15, cooling: 0.15, timing: 0.15, fit: 0.05, relationship: 0.1 },
-  clients: { give: 0.2, loop: 0.1, cooling: 0.15, timing: 0.2, fit: 0.3, relationship: 0.05 },
-  referrals: { give: 0.25, loop: 0.1, cooling: 0.2, timing: 0.1, fit: 0.1, relationship: 0.25 },
-  winback: { give: 0.15, loop: 0.1, cooling: 0.4, timing: 0.15, fit: 0.1, relationship: 0.1 },
-  partners: { give: 0.3, loop: 0.1, cooling: 0.15, timing: 0.15, fit: 0.25, relationship: 0.05 },
+  give: { give: 0.4, loop: 0.15, cooling: 0.15, timing: 0.1, fit: 0.05, ask: 0.05, relationship: 0.1 },
+  clients: { give: 0.15, loop: 0.1, cooling: 0.15, timing: 0.15, fit: 0.25, ask: 0.15, relationship: 0.05 },
+  referrals: { give: 0.2, loop: 0.1, cooling: 0.15, timing: 0.1, fit: 0.1, ask: 0.2, relationship: 0.15 },
+  winback: { give: 0.15, loop: 0.1, cooling: 0.35, timing: 0.1, fit: 0.1, ask: 0.15, relationship: 0.05 },
+  partners: { give: 0.25, loop: 0.1, cooling: 0.1, timing: 0.15, fit: 0.2, ask: 0.15, relationship: 0.05 },
 };
 
 const DEFAULT_PER_DAY = 5;
@@ -36,8 +39,6 @@ const DEFAULT_REST_DAYS = 21;
 /** Just talked: don't suggest them again unless there's an intro to follow up on. */
 const JUST_SPOKE_DAYS = 7;
 const NEWS_WINDOW_DAYS = 90;
-/** Semantic industry fit below this isn't shown or counted (profileFit is calibrated per industry). */
-const MIN_SEMANTIC_FIT = 0.6;
 const TIMELY_NEWS = new Set(["funding", "hiring", "launch", "leadership_change", "partnership"]);
 
 export type ReasonKind = FactorKey;
@@ -59,54 +60,20 @@ export type TodayPerson = {
   /** The best intro you can make for them, if any; drives the suggested action. */
   intro: Candidate | null;
   daysSinceSpoke: number | null;
+  /** Give / Ask: the next move with them. */
+  move: Move;
 };
 
 export type Today = {
   evalDate: string;
+  /** This week's ask budget ("Asks per week" and "Give before you ask"). */
+  askBudget: AskBudget;
   people: TodayPerson[];
   /** People with a reason who didn't make today's cut. */
   more: TodayPerson[];
   briefing: Briefing;
   profile: Profile | null;
 };
-
-type NeedRow = Signal & { interactions: { date: string } };
-
-// What the user offers, matched loosely against a contact's stated needs.
-const OFFER_PATTERNS: Record<string, RegExp> = {
-  marketing: /marketing|\bcmo\b|growth|demand[- ]gen|brand|launch|seo|podcast|pr\b|content/i,
-  sales: /sales|business development|pipeline|customers?|leads/i,
-  finance: /\bcfo\b|accounting|bookkeep|financ|tax/i,
-  legal: /legal|attorney|lawyer|contract|m&a/i,
-  it: /\bit\b|cyber|security|cloud|infrastructure/i,
-  software: /software|engineer|developer|automation|data|\bai\b/i,
-  consulting: /strategy|consult|advis|operations/i,
-  coaching: /coach|training|mentor/i,
-  hr: /hiring|recruit|talent|\bhr\b|vp of engineering|head of/i,
-  investing: /investor|fundrais|seed|series [a-d]|capital|funding/i,
-  realestate: /real estate|office space|property/i,
-  creative: /design|video|creative|website/i,
-};
-
-const ROLE_PATTERNS: Record<string, RegExp> = {
-  owner: /\b(ceo|founder|co-founder|owner|president)\b/i,
-  csuite: /\b(coo|cfo|cmo|cto|cio|chief)\b/i,
-  vp: /\b(vp|vice president|director|partner|head)\b/i,
-  manager: /\bmanager|lead\b/i,
-  ic: /engineer|analyst|specialist|associate|agent|producer/i,
-  investor: /investor|partner|venture|angel|\bvc\b/i,
-};
-
-const words = (s: string) => s.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 3);
-
-function industryMatch(c: Contact, wanted: string[]): string | null {
-  const theirs = words(`${c.industry ?? ""} ${c.company ?? ""}`);
-  for (const ind of wanted) {
-    if (ind === "Other" || !INDUSTRIES.includes(ind as (typeof INDUSTRIES)[number])) continue;
-    if (words(ind).some((w) => theirs.some((t) => t.startsWith(w.slice(0, 5))))) return ind;
-  }
-  return null;
-}
 
 const first = (name: string) => name.split(" ")[0];
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
@@ -115,9 +82,11 @@ function assess(
   c: Contact,
   evalDate: string,
   introsFor: Map<string, Candidate[]>,
-  needsFor: Map<string, NeedRow[]>,
+  needsFor: Map<string, SignalRow[]>,
+  offersFor: Map<string, SignalRow[]>,
   profile: Profile | null,
   semantic: ProfileFit | undefined,
+  budget: AskBudget,
 ): TodayPerson | null {
   if (c.relationship_strength < MIN_PROPOSED_STRENGTH) return null;
   if (c.outreach_snoozed_until && c.outreach_snoozed_until > evalDate) return null;
@@ -126,7 +95,7 @@ function assess(
 
   const daysSinceSpoke = c.last_interaction_date ? daysBetween(c.last_interaction_date, evalDate) : null;
   const weights = WEIGHTS[profile?.goal ?? "give"];
-  const factors: Record<FactorKey, number> = { give: 0, loop: 0, cooling: 0, timing: 0, fit: 0, relationship: 0 };
+  const factors: Record<FactorKey, number> = { give: 0, loop: 0, cooling: 0, timing: 0, fit: 0, ask: 0, relationship: 0 };
   const reasons: Omit<TodayReason, "points">[] = [];
 
   // Intros: best eligible one where they're the person being helped.
@@ -168,9 +137,7 @@ function assess(
   }
 
   // Timing: a deadline they mentioned, or recent news about them.
-  const needs = (needsFor.get(c.id) ?? []).filter(
-    (n) => (!n.relevant_until || n.relevant_until >= evalDate) && daysBetween(n.interactions.date, evalDate) <= STALE_AFTER_DAYS,
-  );
+  const needs = activeSignals(needsFor.get(c.id) ?? [], evalDate);
   // A need already covered by the intro above isn't counted twice.
   const urgent = needs.find(
     (n) => n.time_sensitive && n.id !== intro?.need.id && daysBetween(n.interactions.date, evalDate) <= 120,
@@ -200,41 +167,21 @@ function assess(
   }
 
   // Fit with what the user is looking for (onboarding answers).
-  if (profile) {
-    const offerHit = needs.find((n) => profile.offers.some((o) => OFFER_PATTERNS[o]?.test(n.description)));
-    const ind = industryMatch(c, profile.industries);
-    const role = profile.roles.find((r) => ROLE_PATTERNS[r]?.test(c.title ?? ""));
-    if (offerHit && profile.goal !== "give") {
-      factors.fit = 1;
-      reasons.push({
-        kind: "fit",
-        title: `Needs ${offerHit.description.charAt(0).toLowerCase()}${offerHit.description.slice(1)}: your area`,
-        detail: "Lead with help, not a pitch.",
-        source: { label: `${first(c.name)}, ${offerHit.interactions.date}: “${offerHit.supporting_text}”` },
-      });
-    } else {
-      // Industry: the stronger of a keyword match (0.5) and the calibrated semantic match (up to 0.6).
-      // Role: keyword match only (embeddings can't tell roles apart). Ideal client in both = 0.8+.
-      const semanticFit = semantic && semantic.score >= MIN_SEMANTIC_FIT ? semantic.score : 0;
-      const industry = Math.max(ind ? 0.5 : 0, 0.6 * semanticFit);
-      const fit = Math.min(1, industry + (role ? 0.3 : 0));
-      if (fit > 0) {
-        factors.fit = fit;
-        const industryLabel =
-          0.6 * semanticFit > (ind ? 0.5 : 0)
-            ? `${semanticFit >= 0.85 ? "Strong" : "Likely"} match for your target industry: ${semantic!.matched.label}`
-            : ind;
-        reasons.push({
-          kind: "fit",
-          title: "Matches your ideal client",
-          detail: [industryLabel, role ? c.title : null].filter(Boolean).join(" · "),
-        });
-      }
-    }
+  const fit = goalFit(c, needs, profile, semantic);
+  if (fit) {
+    factors.fit = fit.score;
+    reasons.push({ kind: "fit", title: fit.title, detail: fit.detail, source: fit.source });
+  }
+
+  // Something they could give the user. Ranked up only while an ask is open, so asks wait for gives.
+  const potential = askPotential(c, activeSignals(offersFor.get(c.id) ?? [], evalDate), profile);
+  if (potential && budget.open > 0) {
+    factors.ask = potential.score;
+    reasons.push({ kind: "ask", title: potential.title, detail: potential.detail, source: potential.source });
   }
 
   factors.relationship = c.relationship_strength / 5;
-  if (profile?.goal === "referrals" && c.relationship_strength >= 4) {
+  if (profile?.goal === "referrals" && c.relationship_strength >= 4 && !factors.ask) {
     reasons.push({ kind: "relationship", title: `Close relationship (${c.relationship_strength}/5)`, detail: "A natural person to ask who else you should meet." });
   }
 
@@ -253,6 +200,15 @@ function assess(
     weights,
     intro,
     daysSinceSpoke,
+    move: moveFor(
+      c,
+      {
+        introTo: intro?.proposed.name ?? null,
+        need: [...needs].sort((a, b) => Number(b.time_sensitive) - Number(a.time_sensitive))[0]?.description ?? null,
+        ask: bestAsk(fit, potential),
+      },
+      budget,
+    ),
     reasons: reasons
       .map((r) => ({ ...r, points: contribution(r.kind) }))
       .sort((a, b) => b.points - a.points),
@@ -260,34 +216,37 @@ function assess(
 }
 
 export async function buildToday(ctx: Ctx, evalDate: string): Promise<Today> {
-  const [briefing, contacts, needs] = await Promise.all([
+  const [briefing, contacts, signals] = await Promise.all([
     buildBriefing(ctx, evalDate),
     ctx.db.from("contacts").select("*").eq("owner_id", ctx.ownerId).then((r) => must<Contact[]>(r)),
     ctx.db
       .from("signals")
       .select("*, interactions(date)")
       .eq("owner_id", ctx.ownerId)
-      .eq("type", "need")
       .eq("status", "active")
-      .then((r) => must<NeedRow[]>(r)),
+      .then((r) => must<SignalRow[]>(r)),
   ]);
   const profile = briefing.profile;
   // Empty when embeddings aren't ready or the network is too small to calibrate; rules still apply.
-  const semantic = await profileFit(ctx, profile);
+  const [semantic, askBudget] = await Promise.all([profileFit(ctx, profile), loadAskBudget(ctx, evalDate, profile)]);
 
   // Eligible intros per recipient, best first (briefing order is already by score).
   const introsFor = new Map<string, Candidate[]>();
   for (const c of [...briefing.recommendations, ...briefing.alsoConsidered].sort((a, b) => b.score.total - a.score.total)) {
     introsFor.set(c.recipient.id, [...(introsFor.get(c.recipient.id) ?? []), c]);
   }
-  const needsFor = new Map<string, NeedRow[]>();
-  for (const n of needs) needsFor.set(n.contact_id, [...(needsFor.get(n.contact_id) ?? []), n]);
+  const needsFor = new Map<string, SignalRow[]>();
+  const offersFor = new Map<string, SignalRow[]>();
+  for (const s of signals) {
+    const map = s.type === "need" ? needsFor : offersFor;
+    map.set(s.contact_id, [...(map.get(s.contact_id) ?? []), s]);
+  }
 
   const ranked = contacts
-    .map((c) => assess(c, evalDate, introsFor, needsFor, profile, semantic.get(c.id)))
+    .map((c) => assess(c, evalDate, introsFor, needsFor, offersFor, profile, semantic.get(c.id), askBudget))
     .filter((p): p is TodayPerson => p !== null)
     .sort((a, b) => b.score - a.score || a.contact.id.localeCompare(b.contact.id));
 
   const perDay = profile?.per_day ?? DEFAULT_PER_DAY;
-  return { evalDate, people: ranked.slice(0, perDay), more: ranked.slice(perDay), briefing, profile };
+  return { evalDate, askBudget, people: ranked.slice(0, perDay), more: ranked.slice(perDay), briefing, profile };
 }

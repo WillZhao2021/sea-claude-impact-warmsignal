@@ -10,6 +10,8 @@ export type PersonCard = {
   lastSpoke: string | null;
   reasons: string[];
   phone: string | null;
+  /** Give / Ask: the next move with them (src/lib/moves.ts). */
+  move?: { kind: "give" | "ask"; why: string };
 };
 
 export type ChatCard =

@@ -21,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { chatUploadAction } from "@/app/chat/actions";
 import type { ChatCard, ChatFrame, ChatRow, PersonCard } from "@/lib/chat/cards";
 import { whatsappLink } from "@/lib/phonebook";
-import { Avatar, btn, card as cardCls, SignalBars } from "../ui";
+import { Avatar, btn, card as cardCls, MoveTag, SignalBars } from "../ui";
 
 type Live = { text: string; cards: ChatCard[]; tool: string | null };
 
@@ -340,6 +340,11 @@ function PersonHeader({ p }: { p: PersonCard }) {
       <div className="min-w-0 flex-1">
         <div className="font-semibold text-slate-900">{p.name}</div>
         {p.role && <div className="truncate text-xs text-slate-500">{p.role}</div>}
+        {p.move && (
+          <div className="mt-1 flex">
+            <MoveTag move={p.move} withWhy />
+          </div>
+        )}
       </div>
       <SignalBars value={p.strength} small />
     </div>
