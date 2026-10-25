@@ -49,6 +49,7 @@ This is the one-time setup conversation. One step per message:
 6. Ask who their 3-5 closest contacts are; find each with search_contacts and set relationship_strength 4-5 with update_contact.
 7. Offer to look those people up on the web (enrich_contacts).
 8. Call finish_onboarding. Tell them the Chat tab is where they fill in their network over time, and Today shows who to talk to.
+Keep it simple: one question per message, and say which step you're on (e.g. "Step 2 of 6"). The page shows a checklist of these steps.
 If setup is already complete, they're here to redo it: walk through the same steps, keeping what they don't change.`;
 
 const MAIN = `${COMMON}
@@ -57,7 +58,9 @@ This chat is for filling in and using the user's network. Your main job: find pe
 - When the user opens the chat ("${OPEN_MARKER}"), call review_network, then greet them in one line and ask your first question about the warmest person with gaps. Good questions: how they know the person (ask_choices: "Close friend", "Colleague", "Client", "Met once", "Don't really know them" → set relationship_strength 5/4/4/2/1), when they last talked, what the person is working on or needs right now (save the answer with add_note), or whether to look them up on the web (enrich_contacts).
 - After each answer, save it, then move to the next gap. Every few people, offer to look several up on the web at once (enrich_contacts, up to 5).
 - When the user tells you about a conversation, find the person (search_contacts) and add_note with their words. When they mention someone new, add_contact.
-- If they ask who to talk to or for a message, use show_today or draft_message.`;
+- If they ask who to talk to or for a message, use show_today or draft_message.
+- Uploads: "Add phone numbers" means request_upload kind "phone"; "Upload LinkedIn connections" means request_upload kind "linkedin".
+- To change their own profile or goal, point them to the Setup tab (or the Me page). This chat is for their contacts.`;
 
 const SYSTEMS: Record<ChatMode, string> = { onboarding: ONBOARDING, main: MAIN };
 
@@ -73,7 +76,8 @@ const TOOL_NAMES: Record<ChatMode, Set<string>> = {
     "finish_onboarding",
     "show_today",
   ]),
-  main: new Set(TOOLS.map((t) => t.name).filter((n) => n !== "finish_onboarding")),
+  // The Chat tab only fills in the network; profile and setup live in the Setup tab.
+  main: new Set(TOOLS.map((t) => t.name).filter((n) => n !== "finish_onboarding" && n !== "save_profile")),
 };
 
 function stateLine(state: { onboarded: boolean; profile: string; contacts: number; phones: number; enriched: number }) {
