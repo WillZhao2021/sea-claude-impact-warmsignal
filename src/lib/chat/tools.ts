@@ -28,7 +28,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: "save_profile",
     description:
-      "Save what you've learned about the user during onboarding. Call it as soon as you learn each answer; only include fields you know.",
+      "Save the user's onboarding answers. Only include fields the user explicitly told you in this conversation: never guess or fill in defaults. If what they offer doesn't fit the offers list, leave offers out and put their words in offer_line.",
     input_schema: {
       type: "object",
       properties: {
@@ -56,6 +56,35 @@ export const TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: { kind: { type: "string", enum: ["linkedin", "phone"] } },
       required: ["kind"],
+    },
+  },
+  {
+    name: "ask_choices",
+    description:
+      "Show tap-to-answer buttons under your question (e.g. the goal options, yes/no, which contacts). Use it whenever the user picks from a short list. Their tap arrives as their next message.",
+    input_schema: {
+      type: "object",
+      properties: {
+        options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 8, description: "Short labels, max ~6 words each" },
+        multi: { type: "boolean", description: "true if they can pick several (they'll get a Done button)" },
+      },
+      required: ["options"],
+    },
+  },
+  {
+    name: "review_network",
+    description:
+      "Find what's missing in the user's network data: contacts with no notes, never looked up on the web, no phone number, or an unconfirmed relationship strength. Warmest contacts first. Use it to decide what to ask the user or which contacts to enrich.",
+    input_schema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 10 } } },
+  },
+  {
+    name: "enrich_contacts",
+    description:
+      "Search the public web (Tavily) for up to 5 contacts at once and update their profiles. Takes 20-60 seconds. Use contact ids from review_network, search_contacts or show_today.",
+    input_schema: {
+      type: "object",
+      properties: { contact_ids: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 5 } },
+      required: ["contact_ids"],
     },
   },
   {
@@ -137,6 +166,9 @@ export const TOOL_LABELS: Record<string, string> = {
   save_profile: "Saving your profile",
   finish_onboarding: "Finishing setup",
   request_upload: "Preparing upload",
+  ask_choices: "Preparing options",
+  review_network: "Checking what's missing",
+  enrich_contacts: "Searching the web",
   show_today: "Ranking today's people",
   search_contacts: "Searching your contacts",
   get_contact: "Looking them up",
@@ -206,6 +238,9 @@ const Inputs = {
   }),
   finish_onboarding: z.object({}),
   request_upload: z.object({ kind: z.enum(["linkedin", "phone"]) }),
+  ask_choices: z.object({ options: z.array(z.string().min(1).max(80)).min(2).max(8), multi: z.boolean().optional() }),
+  review_network: z.object({ limit: z.number().int().min(1).max(10).optional() }),
+  enrich_contacts: z.object({ contact_ids: z.array(z.string().min(1)).min(1).max(5) }),
   show_today: z.object({ limit: z.number().int().min(1).max(10).optional() }),
   search_contacts: z.object({ query: z.string().min(1).max(100) }),
   get_contact: Id,
@@ -256,6 +291,82 @@ export async function runTool(ctx: Ctx, name: string, input: unknown, signal?: A
       return {
         text: `Upload card shown for ${kind}. Wait for the user's upload; its result arrives as their next message.`,
         cards: [{ type: "upload", kind }],
+      };
+    }
+    case "ask_choices": {
+      const options = args.options as string[];
+      return {
+        text: `Buttons shown: ${options.join(" | ")}. Wait for the user's answer.`,
+        cards: [{ type: "choices", options, multi: Boolean(args.multi) }],
+      };
+    }
+    case "review_network": {
+      const [contacts, noted] = await Promise.all([
+        ctx.db
+          .from("contacts")
+          .select("*")
+          .eq("owner_id", ctx.ownerId)
+          .then((r) => must<Contact[]>(r)),
+        ctx.db
+          .from("interactions")
+          .select("contact_id")
+          .eq("owner_id", ctx.ownerId)
+          .then((r) => new Set(must<{ contact_id: string }[]>(r).map((i) => i.contact_id))),
+      ]);
+      if (!contacts.length) return { text: "The network is empty. Ask the user to upload their LinkedIn connections (request_upload)." };
+      const gapsOf = (c: Contact) =>
+        [
+          !noted.has(c.id) && "No notes yet",
+          !c.enriched_at && "Never looked up on the web",
+          !c.phone && "No phone number",
+          c.relationship_strength <= 2 && !c.last_interaction_date && "Relationship strength not confirmed",
+        ].filter((g): g is string => !!g);
+      const withGaps = contacts
+        .map((c) => ({ c, gaps: gapsOf(c) }))
+        .filter((x) => x.gaps.length)
+        .sort((a, b) => b.c.relationship_strength - a.c.relationship_strength || b.gaps.length - a.gaps.length);
+      const count = (g: string) => withGaps.filter((x) => x.gaps.includes(g)).length;
+      const totals = `${contacts.length} contacts: ${count("No notes yet")} with no notes, ${count("Never looked up on the web")} never looked up on the web, ${count("No phone number")} without a phone number, ${count("Relationship strength not confirmed")} with unconfirmed strength.`;
+      const top = withGaps.slice(0, (args.limit as number | undefined) ?? 6);
+      if (!top.length) return { text: `${totals} Nothing important is missing.` };
+      return {
+        text: `${totals}\nWarmest with gaps:\n${top.map((x) => line(x.c, x.gaps.join(", "))).join("\n")}`,
+        cards: [{ type: "people", title: "Missing information", people: top.map((x) => person(x.c, x.gaps)) }],
+      };
+    }
+    case "enrich_contacts": {
+      const ids = [...new Set(args.contact_ids as string[])];
+      const results: { c: Contact; summary: string | null; note: string }[] = [];
+      for (let i = 0; i < ids.length; i += 3) {
+        await Promise.all(
+          ids.slice(i, i + 3).map(async (id) => {
+            const c = await loadContact(ctx, id);
+            if (!c) return;
+            try {
+              const e = await enrichAndSave(ctx, id, { signal });
+              const fresh = (await loadContact(ctx, id)) ?? c;
+              results.push(
+                e.status === "matched"
+                  ? { c: fresh, summary: e.summary, note: [e.summary, ...e.recent_signals.slice(0, 2).map((s) => s.text)].join(" Recent: ") }
+                  : { c: fresh, summary: null, note: `No confident match (${e.identity_notes})` },
+              );
+            } catch (err) {
+              results.push({ c, summary: null, note: `Search failed: ${err instanceof Error ? err.message : "unknown error"}` });
+            }
+          }),
+        );
+      }
+      if (!results.length) return { text: "None of those contact ids exist. Use review_network or search_contacts.", isError: true };
+      return {
+        text: results.map((r) => `${r.c.id}: ${r.c.name} - ${r.note}`).join("\n"),
+        cards: [
+          {
+            type: "people",
+            title: "Looked up on the web",
+            people: results.map((r) => person(r.c, [r.summary ?? r.note])),
+          },
+        ],
+        contactsChanged: true,
       };
     }
     case "show_today": {

@@ -220,7 +220,7 @@ function Row({ row, act, status }: { row: ChatRow; act: Act; status?: string | n
         {row.cards.map((c, i) => (
           <CardView key={i} card={c} act={act} />
         ))}
-        {row.text && <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{row.text}</p>}
+        {row.text && <RichText text={row.text} />}
         {status && <Status label={status} />}
       </div>
     </div>
@@ -302,6 +302,8 @@ function CardView({ card, act }: { card: ChatCard; act: Act }) {
           <SignalList icon={<HandHeart className="size-4 text-emerald-600" />} label="Can offer" items={card.offers} />
         </div>
       );
+    case "choices":
+      return <Choices options={card.options} multi={card.multi} act={act} />;
     case "notice":
       return (
         <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 ring-1 ring-emerald-200">
@@ -455,4 +457,71 @@ function ActionButton({ onClick, disabled, children }: { onClick: () => void; di
       {children}
     </button>
   );
+}
+
+function Choices({ options, multi, act }: { options: string[]; multi: boolean; act: Act }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sent, setSent] = useState(false);
+  const choose = (o: string) => {
+    if (sent || act.busy) return;
+    if (!multi) {
+      setSent(true);
+      setPicked([o]);
+      act.send(o);
+    } else setPicked((p) => (p.includes(o) ? p.filter((x) => x !== o) : [...p, o]));
+  };
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => choose(o)}
+          disabled={sent || act.busy}
+          className={`rounded-full px-3.5 py-1.5 text-sm font-medium ring-1 transition ${
+            picked.includes(o) ? "bg-ink-600 text-white ring-ink-600" : "bg-white text-slate-700 ring-slate-200 hover:ring-ink-300"
+          } disabled:cursor-default ${sent && !picked.includes(o) ? "opacity-40" : ""}`}
+        >
+          {o}
+        </button>
+      ))}
+      {multi && !sent && (
+        <button
+          type="button"
+          disabled={!picked.length || act.busy}
+          onClick={() => {
+            setSent(true);
+            act.send(picked.join(", "));
+          }}
+          className={`rounded-full px-3.5 py-1.5 text-sm font-medium ${btn.primary} disabled:opacity-40`}
+        >
+          Done
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Plain text with light formatting: "- " bullets and **bold**, in case the model uses them. */
+function RichText({ text }: { text: string }) {
+  const inline = (line: string) =>
+    line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      /^\*\*[^*]+\*\*$/.test(part) ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong> : part,
+    );
+  const blocks: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flush = () => {
+    if (bullets.length) blocks.push(<ul key={blocks.length} className="list-disc space-y-0.5 pl-5">{bullets.map((b, i) => <li key={i}>{inline(b)}</li>)}</ul>);
+    bullets = [];
+  };
+  for (const raw of text.split("\n")) {
+    const m = raw.match(/^\s*[-*•]\s+(.*)$/);
+    if (m) bullets.push(m[1]);
+    else {
+      flush();
+      if (raw.trim()) blocks.push(<p key={blocks.length}>{inline(raw.replace(/^#+\s*/, ""))}</p>);
+    }
+  }
+  flush();
+  return <div className="space-y-2 text-sm leading-relaxed text-slate-800">{blocks}</div>;
 }

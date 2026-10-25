@@ -26,7 +26,9 @@ export type ChatCard =
   | { type: "upload"; kind: "linkedin" | "phone" }
   | { type: "profile"; lines: [string, string][] }
   | { type: "note"; contactId: string; name: string; needs: string[]; offers: string[] }
-  | { type: "notice"; text: string; href?: string };
+  | { type: "notice"; text: string; href?: string }
+  /** Tap-to-answer options; tapping one sends it as the user's message. */
+  | { type: "choices"; options: string[]; multi: boolean };
 
 /** Server-sent frames from /api/chat. */
 export type ChatFrame =
