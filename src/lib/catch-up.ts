@@ -1,6 +1,7 @@
 import { FAST_MODEL, textCall } from "./claude";
 import { buildBriefing, type Briefing } from "./briefing";
 import { TONE } from "./draft";
+import { logActivity } from "./momentum";
 import { profilePrompt, signOffInstruction, type Profile } from "./profile";
 import { coolingScore, daysBetween, MIN_PROPOSED_STRENGTH, STALE_AFTER_DAYS } from "./scoring";
 import { must, type Ctx } from "./supabase";
@@ -214,4 +215,5 @@ export async function recordDecision(ctx: Ctx, contactId: string, decision: Catc
       ? { last_outreach_at: evalDate, outreach_snoozed_until: null, outreach_draft: null }
       : { outreach_snoozed_until: new Date(Date.parse(evalDate) + SNOOZE_DAYS * 86_400_000).toISOString().slice(0, 10) };
   must(await ctx.db.from("contacts").update(patch).eq("owner_id", ctx.ownerId).eq("id", contactId));
+  if (decision === "sent") await logActivity(ctx, "catch_up_sent", evalDate, { contactId });
 }
