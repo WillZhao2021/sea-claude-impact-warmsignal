@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { INDUSTRIES, ROLES, type Profile } from "./profile";
+import { INDUSTRIES, type Profile } from "./profile";
 import { must, type Ctx } from "./supabase";
 import type { Contact, Signal } from "./types";
 
@@ -17,29 +17,59 @@ export const CANDIDATES_PER_NEED = 15;
 
 /** gte-small reads at most 512 tokens; longer text is silently cut, so trim to the useful part. */
 const MAX_DOCUMENT_CHARS = 1500;
-/** The embed function's per-request cap. */
-const EMBED_BATCH = 16;
+/**
+ * Each embed request must fit the Edge Function's CPU budget (~2s). Measured: ~0.15s for a short
+ * text, ~0.4s for a full 1500-char document. So requests are packed by size, and run a few at a time.
+ */
+const EMBED_BATCH_CHARS = 4000;
+const EMBED_BATCH_MAX = 8; // also enforced by the function
+const EMBED_CONCURRENCY = 4;
 
 /**
- * gte-small similarities cluster high for any business text (roughly 0.7–0.9), so raw cosine is
- * rescaled linearly from FIT_FLOOR (score 0) to FIT_CEILING (score 1). Initial values: tune them
- * against real similarities from the demo network once the embed function is deployed.
+ * Fit calibration. gte-small similarities cluster high for any business text (0.74–0.87 on the
+ * demo network) and each term has its own baseline, so fit is the margin above the term's median
+ * across the user's contacts, scaled so FIT_FULL_MARGIN scores 1. On the demo network, real
+ * industry matches sit 0.05–0.07 above the median (score 0.85–1), borderline ones ~0.04 (~0.65),
+ * and non-matches under 0.03 (< 0.5).
  */
-export const FIT_FLOOR = 0.78;
-export const FIT_CEILING = 0.88;
+export const FIT_FULL_MARGIN = 0.06;
+/** A median over fewer contacts is too noisy to calibrate against. */
+export const MIN_CONTACTS_FOR_FIT = 8;
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
+async function embedBatch(ctx: Ctx, input: string[]): Promise<number[][]> {
+  const { data, error } = await ctx.db.functions.invoke<{ embeddings: number[][] }>("embed", { body: { input } });
+  if (data?.embeddings) return data.embeddings;
+  // Over the CPU budget (HTTP 546) or a transient failure: halve the batch and retry.
+  if (input.length > 1) {
+    const mid = Math.ceil(input.length / 2);
+    return [...(await embedBatch(ctx, input.slice(0, mid))), ...(await embedBatch(ctx, input.slice(mid)))];
+  }
+  throw new Error(`Embedding failed: ${error?.message ?? "no data"}`);
+}
+
 /** Embeds texts with gte-small (deterministic, normalized, 384 dims). Throws if the function is unavailable. */
 export async function embed(ctx: Ctx, texts: string[]): Promise<number[][]> {
-  const batches: string[][] = [];
-  for (let i = 0; i < texts.length; i += EMBED_BATCH) batches.push(texts.slice(i, i + EMBED_BATCH));
-  const out: number[][] = [];
-  // Sequential: each call runs model inference, and the Edge Function has a CPU budget per request.
-  for (const input of batches) {
-    const { data, error } = await ctx.db.functions.invoke<{ embeddings: number[][] }>("embed", { body: { input } });
-    if (error || !data?.embeddings) throw new Error(`Embedding failed: ${error?.message ?? "no data"}`);
-    out.push(...data.embeddings);
+  const batches: { start: number; input: string[] }[] = [];
+  let chars = Infinity;
+  texts.forEach((t, i) => {
+    const last = batches.at(-1);
+    if (!last || chars + t.length > EMBED_BATCH_CHARS || last.input.length >= EMBED_BATCH_MAX) {
+      batches.push({ start: i, input: [t] });
+      chars = t.length;
+    } else {
+      last.input.push(t);
+      chars += t.length;
+    }
+  });
+  const out: number[][] = new Array(texts.length);
+  for (let i = 0; i < batches.length; i += EMBED_CONCURRENCY) {
+    await Promise.all(
+      batches.slice(i, i + EMBED_CONCURRENCY).map(async (b) => {
+        (await embedBatch(ctx, b.input)).forEach((e, j) => (out[b.start + j] = e));
+      }),
+    );
   }
   return out;
 }
@@ -149,29 +179,30 @@ export async function candidatesFor(
 
 // ---------- Profile fit ----------
 
-export type FitTerm = { kind: "industry" | "role"; label: string };
+export type FitTerm = { kind: "industry"; label: string };
 export type ProfileFit = {
-  /** Calibrated 0–1 (see FIT_FLOOR / FIT_CEILING). */
+  /** Calibrated 0–1 (see FIT_FULL_MARGIN). */
   score: number;
-  /** Raw cosine similarity, for debugging and tuning. */
+  /** Raw cosine similarity and its margin above the term's median, for debugging and tuning. */
   similarity: number;
+  margin: number;
   /** The ideal-client term this contact is closest to, for the explanation. */
   matched: FitTerm;
 };
 
-/** The user's ideal-client terms from onboarding. "Other" isn't a description, so it's skipped. */
+/**
+ * The user's ideal-client industries from onboarding ("Other" isn't a description). Roles are left
+ * out: on the demo network gte-small couldn't tell them apart (a VC partner topped "Founder / CEO"),
+ * so role fit is better done by rules on job titles.
+ */
 export function fitTerms(profile: Profile | null): FitTerm[] {
   if (!profile) return [];
-  const roleLabel = new Map<string, string>(ROLES.map(([id, label]) => [id, label]));
-  return [
-    ...profile.industries
-      .filter((i) => i !== "Other" && (INDUSTRIES as readonly string[]).includes(i))
-      .map((label) => ({ kind: "industry" as const, label })),
-    ...profile.roles.flatMap((id) => (roleLabel.has(id) ? [{ kind: "role" as const, label: roleLabel.get(id)! }] : [])),
-  ];
+  return profile.industries
+    .filter((i) => i !== "Other" && (INDUSTRIES as readonly string[]).includes(i))
+    .map((label) => ({ kind: "industry" as const, label }));
 }
 
-const termText = (t: FitTerm) => (t.kind === "industry" ? `Works in ${t.label}` : `Role: ${t.label}`);
+const termText = (t: FitTerm) => `Works in ${t.label}`;
 const termKey = (t: FitTerm) => `${t.kind}:${t.label}`;
 
 /** Re-embeds the profile's terms if they changed. Call after saving a profile; profileFit also self-heals. */
@@ -202,14 +233,16 @@ export async function profileFit(ctx: Ctx, profile: Profile | null): Promise<Map
   if (!fitTerms(profile).length) return fits;
   try {
     await refreshProfileFit(ctx, profile);
-    const rows = must<{ contact_id: string; kind: FitTerm["kind"]; label: string; similarity: number }[]>(
+    const rows = must<{ contact_id: string; kind: FitTerm["kind"]; label: string; similarity: number; margin: number }[]>(
       await ctx.db.rpc("profile_fit", { p_owner: ctx.ownerId }),
     );
+    if (rows.length < MIN_CONTACTS_FOR_FIT) return fits;
     for (const r of rows) {
-      const score = Math.min(1, Math.max(0, (r.similarity - FIT_FLOOR) / (FIT_CEILING - FIT_FLOOR)));
+      const score = Math.min(1, Math.max(0, r.margin / FIT_FULL_MARGIN));
       fits.set(r.contact_id, {
         score: Math.round(score * 1000) / 1000,
         similarity: r.similarity,
+        margin: r.margin,
         matched: { kind: r.kind, label: r.label },
       });
     }

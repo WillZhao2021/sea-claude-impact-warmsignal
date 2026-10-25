@@ -7,7 +7,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const session = new Supabase.ai.Session("gte-small");
 
-const MAX_INPUTS = 16; // keeps each request well inside the Edge Function CPU limit
+const MAX_INPUTS = 8; // with callers packing by size (src/lib/vectors.ts), keeps requests inside the CPU limit
 
 Deno.serve(async (req) => {
   const { input } = await req.json().catch(() => ({ input: null }));
