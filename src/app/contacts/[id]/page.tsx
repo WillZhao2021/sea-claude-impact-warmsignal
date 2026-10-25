@@ -6,6 +6,8 @@ import {
   CalendarDays,
   Clock,
   HandHeart,
+  Mail,
+  MessageCircle,
   Hand,
   MessageSquareText,
   ShieldAlert,
@@ -18,6 +20,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, input, SignalBars } from "@/components/ui";
 import { defaultEvalDate } from "@/lib/briefing";
 import { requireCtx } from "@/lib/auth";
+import { REFRESH_AFTER_DAYS } from "@/lib/enrich";
+import { whatsappLink } from "@/lib/phonebook";
 import { must } from "@/lib/supabase";
 import type { Contact, Interaction, Signal } from "@/lib/types";
 
@@ -76,6 +80,20 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
               <Clock className="size-3" /> Last spoke {formatDate(contact.last_interaction_date)}
             </Chip>
             <GoalFitChip fit={contact.enrichment?.network?.goal_fit} showNone />
+            {contact.phone && (
+              <a href={whatsappLink(contact.phone)} target="_blank" rel="noreferrer" title="Open a WhatsApp chat">
+                <Chip tone="emerald">
+                  <MessageCircle className="size-3" /> WhatsApp {contact.phone}
+                </Chip>
+              </a>
+            )}
+            {contact.email && (
+              <a href={`mailto:${contact.email}`}>
+                <Chip tone="slate">
+                  <Mail className="size-3" /> {contact.email}
+                </Chip>
+              </a>
+            )}
           </div>
           {contact.enrichment?.status === "matched" && !!contact.enrichment.attributes?.length && (
             <AttributeChips attributes={contact.enrichment.attributes} />
@@ -199,6 +217,11 @@ function WebProfile({ contact }: { contact: Contact }) {
   return (
     <EnrichPanel contactId={contact.id} name={contact.name} enriched={!!contact.enriched_at}>
       <EnrichmentView enrichment={contact.enrichment} name={contact.name} />
+      {contact.enriched_at && (
+        <p className="mt-4 text-xs text-slate-400">
+          Checked {contact.enriched_at.slice(0, 10)} · refreshes every {REFRESH_AFTER_DAYS} days
+        </p>
+      )}
     </EnrichPanel>
   );
 }

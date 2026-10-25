@@ -3,6 +3,7 @@ import { ChevronRight, Globe, Sparkles, Wand2 } from "lucide-react";
 import { enrichAllAction, loadDemoAction, removeDemoAction } from "@/app/actions";
 import { ImportCsvForm } from "@/components/import-csv-form";
 import { AttributeChips, GoalFitChip } from "@/components/enrichment-view";
+import { PhonebookImport } from "@/components/phonebook-import";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, PageHeader, SignalBars } from "@/components/ui";
 import { requireCtx } from "@/lib/auth";
@@ -51,6 +52,8 @@ export default async function ContactsPage() {
       />
 
       <ImportCsvForm />
+
+      <PhonebookImport />
 
       <div className={`${card} overflow-hidden`}>
         <table className="w-full text-sm">

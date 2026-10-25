@@ -15,6 +15,8 @@ const snap = snapshot as unknown as {
 };
 
 export const DEMO_EXTERNAL_IDS = snap.contacts.map((c) => c.external_id);
+/** Made-up demo people (not the public figures, whose ids start with "p"). Never web-searched on a schedule. */
+export const DEMO_FICTIONAL_IDS = new Set(DEMO_EXTERNAL_IDS.filter((id) => !id.startsWith("p")));
 
 export async function hasDemoData(ctx: Ctx): Promise<boolean> {
   const { count } = await ctx.db

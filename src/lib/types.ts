@@ -14,6 +14,10 @@ export type Contact = {
   outreach_snoozed_until: string | null;
   outreach_draft: string | null;
   outreach_draft_mode: "keep_warm" | "reconnect" | null;
+  /** E.164. Private: only used for the user's own WhatsApp/SMS links, never sent to Claude or Tavily. */
+  phone: string | null;
+  /** Private, like phone. */
+  email: string | null;
 };
 
 export type SourcedItem = { text: string; source_url: string; date: string | null };

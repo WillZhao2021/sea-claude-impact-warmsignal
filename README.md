@@ -29,6 +29,16 @@ To regenerate the snapshot with the live pipeline (Claude extraction, Tavily enr
 npm run seed -- --email you@example.com --reset --export
 ```
 
+## Models
+
+| Stage | Env var | Default |
+|---|---|---|
+| Note extraction | `ANTHROPIC_MODEL` | `claude-opus-5-5` |
+| Intro matching (the judge) | `ANTHROPIC_MATCH_MODEL` | same as `ANTHROPIC_MODEL` |
+| Web-enrichment summaries, intro and catch-up drafts | `ANTHROPIC_FAST_MODEL` | `claude-haiku-4-5` |
+
+Any stage can run on Haiku 4.5. `src/lib/claude.ts` leaves out `effort` and the server-side fallback beta for Haiku, because Haiku doesn't accept them. To make Haiku the judge, set `ANTHROPIC_MATCH_MODEL=claude-haiku-4-5`. If you do, re-check the expected demo outcomes below, because matching enforces subtle rules (investment criteria, confidentiality, declined intro types).
+
 ## Where things live
 
 | Concern | File |
@@ -47,9 +57,15 @@ npm run seed -- --email you@example.com --reset --export
 - **Eligibility comes before ranking.** Give Value must be at least 3/5. Candidates are also dropped if they're flagged inappropriate, the need is expired or stale (>270 days), the need is an inference backed by weak evidence, or the candidate was dismissed, deferred, or handled. Filtered candidates appear on the briefing page with the reason, so you can show FR-07 working.
 - **Facts vs. assumptions.** Each need or offer carries a verbatim quote, an `is_inferred` flag, and `quote_verified` (we check that the quote really appears in the note). Inferred needs have their Match Confidence capped.
 - **Consent first.** The suggested action always asks the recipient first, then the proposed contact. Nothing is ever sent automatically.
+- **Web enrichment stays fresh.** New contacts are enriched with Tavily in the background as soon as they're created or imported. A daily Vercel Cron job (`/api/cron/enrich`, protected by `CRON_SECRET`) re-enriches any contact last checked more than 14 days ago, so each contact is refreshed about every two weeks. Company news prefers reputable outlets and press wires. A refresh that can't confirm identity keeps the last good match, and fictional demo contacts are never searched on a schedule.
 - **Privacy.** Each user's rows are protected by RLS (`owner_id = auth.uid()`), and requests use the user's session. The service-role key is used only for scripts, background enrichment and creating accounts. Only name, title and company are sent to Tavily.
 
 ## Expected demo outcomes (sample data, eval date 2026-10-25)
 
 Strong: Sarah ← Michael (healthcare seed investor), Sarah ← Priya (enterprise health sales advisor), Grace ↔ Tom (routing software buyer/vendor), Olivia ↔ Ben (B2B podcast), David ← Elena (VP Eng, confidential, so it must be permission-first).
 Should *not* surface: Sarah ← Hannah (Series A+ only), James (the need belongs to his friend), Marcus (no stated need), Kevin (stale), Rachel (mass-intro request), Tom ← any investor (he declined investor intros).
+
+## Team
+
+- Will Zhao ([@WillZhao2021](https://github.com/WillZhao2021))
+- Mark ([@MarkUnivWash](https://github.com/MarkUnivWash))

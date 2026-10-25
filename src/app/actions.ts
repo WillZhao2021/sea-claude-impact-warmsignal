@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { requireCtx, userDb } from "@/lib/auth";
 import { defaultEvalDate } from "@/lib/briefing";
 import { getOrCreateCatchUpDraft, recordDecision, type CatchUpDecision } from "@/lib/catch-up";
-import { ImportError, importContactsCsv } from "@/lib/contacts";
+import { ImportError, importContactsCsv, importPhonebook } from "@/lib/contacts";
 import { loadDemoData, removeDemoData } from "@/lib/demo";
 import { ensureDrafts } from "@/lib/draft";
 import { enrichAndSave, enrichPending } from "@/lib/enrich";
@@ -136,6 +136,26 @@ export async function importCsvAction(_prev: ImportState, formData: FormData): P
       ? `Imported ${imported} contact${imported === 1 ? "" : "s"}. New ones are looked up on the web in the background.`
       : "No new contacts: everyone in that file is already in your network.",
   };
+}
+
+export type PhonebookState =
+  | { status: "idle" }
+  | { status: "error"; error: string }
+  | { status: "done"; updated: number; entries: number; ambiguous: string[] };
+
+/** Address book (vCard / Google Contacts CSV) → phone + email on existing contacts. */
+export async function importPhonebookAction(_prev: PhonebookState, formData: FormData): Promise<PhonebookState> {
+  const ctx = await requireCtx();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { status: "error", error: "Choose a .vcf or Google Contacts CSV file" };
+  if (file.size > 20_000_000) return { status: "error", error: "That file is over 20 MB" };
+  try {
+    const result = await importPhonebook(ctx, await file.text());
+    revalidatePath("/contacts");
+    return { status: "done", ...result };
+  } catch (e) {
+    return { status: "error", error: (e as Error).message };
+  }
 }
 
 export type CreateContactState = { error: string | null };
