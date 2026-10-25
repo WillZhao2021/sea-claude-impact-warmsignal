@@ -106,8 +106,8 @@ export function askPotential(c: Contact, offers: SignalRow[], profile: Profile |
   if (assessed && assessed.level !== "none") {
     options.push({ score: assessed.level === "strong" ? 1 : 0.5, title: "Can help with your goal", detail: assessed.why });
   }
-  if (profile?.goal === "referrals" && c.relationship_strength >= 4) {
-    options.push({ score: 0.8, title: "Close enough to ask for referrals", detail: "Ask who else you should meet." });
+  if (profile?.goal === "ask" && c.relationship_strength >= 4) {
+    options.push({ score: 0.8, title: "Close enough to ask for an intro", detail: "Ask who else you should meet." });
   }
   const offer = offers[0];
   if (offer) {

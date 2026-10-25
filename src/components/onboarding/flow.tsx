@@ -3,7 +3,6 @@
 import {
   ArrowLeft,
   ArrowRight,
-  Briefcase,
   Check,
   CircleAlert,
   FileSpreadsheet,
@@ -11,10 +10,8 @@ import {
   Globe,
   Handshake,
   LoaderCircle,
-  Repeat,
   Sparkles,
   Upload,
-  Users,
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import {
@@ -50,7 +47,7 @@ import {
 
 type Step = "welcome" | "business" | "goal" | "clients" | "cadence" | "upload" | "enrich";
 const ORDER: Step[] = ["welcome", "business", "goal", "clients", "cadence", "upload", "enrich"];
-const GOAL_ICONS = { give: Gift, clients: Briefcase, referrals: Handshake, winback: Repeat, partners: Users } as const;
+const GOAL_ICONS = { give: Gift, ask: Handshake } as const;
 
 type Props = {
   initial: Profile;
