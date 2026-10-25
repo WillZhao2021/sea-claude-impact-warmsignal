@@ -1,6 +1,6 @@
 contact_id,name,company,title,industry,relationship_strength,last_interaction_date,introduction_preferences
-p001,Jensen Huang,NVIDIA,Founder & CEO,AI Computing,1,,Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.
-p002,Patrick Collison,Stripe,Co-founder & CEO,Fintech,1,,Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.
-p003,Reid Hoffman,Greylock,Partner,Venture Capital,1,,Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.
-p004,Lisa Su,AMD,Chair & CEO,Semiconductors,1,,Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.
-p005,Marc Benioff,Salesforce,Chair & CEO,Enterprise Software,1,,Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.
+p001,Jensen Huang,NVIDIA,Founder & CEO,AI Computing,1,,Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.
+p002,Patrick Collison,Stripe,Co-founder & CEO,Fintech,1,,Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.
+p003,Reid Hoffman,Greylock,Partner,Venture Capital,1,,Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.
+p004,Lisa Su,AMD,Chair & CEO,Semiconductors,1,,Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.
+p005,Marc Benioff,Salesforce,Chair & CEO,Enterprise Software,1,,Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.

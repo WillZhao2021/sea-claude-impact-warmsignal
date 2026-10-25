@@ -141,12 +141,16 @@ export function OnboardingFlow({ initial, existingContacts, hasDemo, webEnrichme
           setStageMsg("Loading the demo network…");
           await loadDemoNetworkAction();
         }
-        // Demo and existing networks are already processed; show the steps briefly.
-        for (let i = 0; i < STAGES.length; i++) {
+        // Demo and existing networks are already extracted, enriched and matched; show those steps briefly.
+        for (let i = 0; i < STAGES.length - 1; i++) {
           setStage(i);
           setStageMsg(source === "demo" ? "The demo network comes pre-enriched, so this is instant." : "Using your existing network.");
           await pause(450);
         }
+        // Drafts are written in the user's own voice and tone, so this step is real work.
+        setStage(STAGES.length - 1);
+        setStageMsg("Writing the first message for each introduction…");
+        await draftMessagesStepAction();
       }
       setStage(STAGES.length);
       setStageMsg("");

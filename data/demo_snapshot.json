@@ -1,5 +1,5 @@
 {
- "note": "Processed demo dataset (fictional contacts + public figures). Regenerate with: npm run demo:export -- --email <account>",
+ "note": "Processed demo dataset (fictional contacts + public figures). Regenerate with: npm run demo:export -- --email <account> Drafts are not included: they are generated per user, in their voice.",
  "contacts": [
   {
    "external_id": "c001",
@@ -24,7 +24,7 @@
    "industry": "Venture Capital",
    "relationship_strength": 4,
    "last_interaction_date": "2026-07-30",
-   "introduction_preferences": "Happy to meet founders Alonso vouches for",
+   "introduction_preferences": "Happy to meet founders you vouch for",
    "enrichment": {
     "status": "no_confident_match",
     "identity_notes": "No result links any Michael Reed to Northbeam Ventures; Northbeam results concern an unrelated e-commerce analytics company."
@@ -459,7 +459,7 @@
    "industry": "AI Computing",
    "relationship_strength": 1,
    "last_interaction_date": null,
-   "introduction_preferences": "Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.",
+   "introduction_preferences": "Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.",
    "enrichment": {
     "status": "matched",
     "sources": [
@@ -553,7 +553,7 @@
    "industry": "Fintech",
    "relationship_strength": 1,
    "last_interaction_date": null,
-   "introduction_preferences": "Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.",
+   "introduction_preferences": "Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.",
    "enrichment": {
     "status": "matched",
     "sources": [
@@ -653,7 +653,7 @@
    "industry": "Venture Capital",
    "relationship_strength": 1,
    "last_interaction_date": null,
-   "introduction_preferences": "Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.",
+   "introduction_preferences": "Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.",
    "enrichment": {
     "status": "matched",
     "sources": [
@@ -723,7 +723,7 @@
    "industry": "Semiconductors",
    "relationship_strength": 1,
    "last_interaction_date": null,
-   "introduction_preferences": "Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.",
+   "introduction_preferences": "Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.",
    "enrichment": {
     "status": "matched",
     "sources": [
@@ -741,11 +741,11 @@
      },
      {
       "url": "https://www.tomshardware.com/tech-industry/leading-semiconductor-analyst-accuses-amd-of-treason-over-restricted-chips-availability-in-china-amd-blames-diversion-of-export-controlled-rfsoc-usd36-000-radar-silicon-allegedly-quoted-at-usd1-000-for-crowdfunding-project",
-      "title": "Leading semiconductor analyst says AMD should be investigated for 'treason' over availability of restricted chips in China, AMD blames diversion of export-controlled RFSoC — $36,000 radar silicon allegedly quoted at $1,000 for crowdfunding project | Tom's Hardware"
+      "title": "Leading semiconductor analyst says AMD should be investigated for 'treason' over availability of restricted chips in China, AMD blames diversion of export-controlled RFSoC \u2014 $36,000 radar silicon allegedly quoted at $1,000 for crowdfunding project | Tom's Hardware"
      },
      {
       "url": "https://www.uri.edu/news/2026/08/uri-professors-startup-team-joined-semiconductor-giant-amd",
-      "title": "URI professors’ startup team joined semiconductor giant AMD – Rhody Today"
+      "title": "URI professors\u2019 startup team joined semiconductor giant AMD \u2013 Rhody Today"
      }
     ],
     "summary": "Dr. Lisa Su is Chair & CEO of AMD, a semiconductor company supplying CPUs, GPUs and AI accelerators. She has led AMD since 2014.",
@@ -805,7 +805,7 @@
    "industry": "Enterprise Software",
    "relationship_strength": 1,
    "last_interaction_date": null,
-   "introduction_preferences": "Public figure added only to demo web enrichment. Alonso has no personal relationship - never propose introductions.",
+   "introduction_preferences": "Public figure added only to demo web enrichment. You have no personal relationship - never propose introductions.",
    "enrichment": {
     "status": "matched",
     "sources": [
@@ -1657,8 +1657,8 @@
    "consent_status": "not_requested",
    "status": "suggested",
    "deferred_until": null,
-   "draft_message": "Hi Olivia,\n\nYou mentioned you're looking for a podcast production agency that really gets B2B and can help you launch by January. I know a founder whose studio produces B2B podcasts end to end, from planning through editing and distribution. It's squarely their focus, and they're taking on new clients this fall, so the timing could work well.\n\nWould an intro be helpful? If so, I'll check with them first and then connect you both.\n\nBest,\nAlonso",
-   "draft_kind": "ask_recipient"
+   "draft_message": null,
+   "draft_kind": null
   },
   {
    "recipient": "c011",
@@ -1699,8 +1699,8 @@
    "consent_status": "not_requested",
    "status": "suggested",
    "deferred_until": null,
-   "draft_message": "Hi Tom,\n\nYou mentioned you'd love intros to operations leaders at retail chains. I know someone who might be a great fit. She's VP of Operations at a mid-size retail chain and is currently looking at delivery and routing software, so the timing could be good on both sides.\n\nWould you like me to connect you? If so, I'll check with her first to make sure she's open to it, then make the introduction.\n\nBest,\nAlonso",
-   "draft_kind": "ask_recipient"
+   "draft_message": null,
+   "draft_kind": null
   },
   {
    "recipient": "c007",
@@ -1728,7 +1728,7 @@
    "proposed": "c001",
    "need": "5c6a4ce1-96ef-456f-8e2f-1b861d550fb4",
    "offer": null,
-   "value_proposition": "Seed-stage digital health founder Alonso can vouch for",
+   "value_proposition": "Seed-stage digital health founder you can vouch for",
    "why_proposed": "MedLoop AI is a seed-stage healthcare AI company, fitting Northbeam's seed/Series A thesis.",
    "why_now": "Fund III deploying; MedLoop seed closes November",
    "give_value": 5,
@@ -1741,8 +1741,8 @@
    "consent_status": "not_requested",
    "status": "suggested",
    "deferred_until": null,
-   "draft_message": "Hi Michael,\n\nYou mentioned wanting to see more early-stage digital health deals at seed and Series A. I know a CEO and co-founder of a seed-stage healthcare AI company who seems like a strong fit for Northbeam's focus, and I think the conversation could be useful on both sides.\n\nWould you like an introduction? If so, I'll check with them first and only connect you if they're open to it.\n\nBest,\nAlonso",
-   "draft_kind": "ask_recipient"
+   "draft_message": null,
+   "draft_kind": null
   },
   {
    "recipient": "c001",
@@ -1846,8 +1846,8 @@
    "consent_status": "not_requested",
    "status": "suggested",
    "deferred_until": null,
-   "draft_message": "Hi Sarah,\n\nYou mentioned you're looking for an enterprise sales advisor who has sold into health systems. I know someone who could be a strong fit. She spent nine years running enterprise sales into hospitals as a VP at a health tech company, and she's now advising independently and interested in working with early-stage healthcare startups.\n\nWould you like an introduction? If so, I'll check with her first to make sure the timing works on her end, then connect you both.\n\nBest,\nAlonso",
-   "draft_kind": "ask_recipient"
+   "draft_message": null,
+   "draft_kind": null
   },
   {
    "recipient": "c007",
@@ -1876,7 +1876,7 @@
    "need": "4c443053-b450-43fd-b461-874c0a9e04f3",
    "offer": "bd3a88fa-4fbc-4112-ac0b-90c84de463ce",
    "value_proposition": "Warm intro to a GP deploying a fresh seed fund",
-   "why_proposed": "Northbeam's new Fund III writes seed checks; Michael meets founders Alonso vouches for.",
+   "why_proposed": "Northbeam's new Fund III writes seed checks; Michael meets founders you vouch for.",
    "why_now": "Fund III just closed; MedLoop seed raise in November",
    "give_value": 5,
    "timeliness": 5,
@@ -1888,8 +1888,8 @@
    "consent_status": "not_requested",
    "status": "suggested",
    "deferred_until": null,
-   "draft_message": "Hi Sarah,\n\nYou mentioned wanting intros to digital health investors ahead of your raise. I know a GP at a seed/Series A fund that just closed a new fund and is actively looking at early-stage AI tools for hospitals. He takes meetings with founders I vouch for, and I think MedLoop would be a strong fit.\n\nWould you like an introduction? If so, I'll check with him first, and let me know what you're comfortable with me sharing about the round.\n\nAlonso",
-   "draft_kind": "ask_recipient"
+   "draft_message": null,
+   "draft_kind": null
   },
   {
    "recipient": "c001",
@@ -2035,8 +2035,8 @@
    "consent_status": "not_requested",
    "status": "suggested",
    "deferred_until": null,
-   "draft_message": "Hi Priya,\n\nYou mentioned you're open to meeting founders, and someone came to mind. She's the CEO and co-founder of an early-stage healthcare AI company that already has signed pilots with hospitals. As they work on turning those pilots into lasting health system relationships, your experience selling into enterprise health could be really valuable to her.\n\nWould you like an introduction? If so, I'll check with her first and connect you both if she's up for it.\n\nBest,\nAlonso",
-   "draft_kind": "ask_recipient"
+   "draft_message": null,
+   "draft_kind": null
   },
   {
    "recipient": "c004",
@@ -2056,8 +2056,8 @@
    "consent_status": "not_requested",
    "status": "suggested",
    "deferred_until": null,
-   "draft_message": "Hi David,\n\nI may know someone for your VP of Engineering search. They're currently a senior engineering leader at a payments company and spent the last three years leading a major rebuild of their core ledger, so scaling payments infrastructure is exactly their background. I think they'd be worth a conversation given your Q1 timeline.\n\nWould you like an introduction? If so, I'll check with them privately first and only connect you if they're open to it.\n\nBest,\nAlonso",
-   "draft_kind": "ask_recipient"
+   "draft_message": null,
+   "draft_kind": null
   },
   {
    "recipient": "c012",
