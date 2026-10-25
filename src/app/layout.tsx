@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
-import { Coffee, House, LogOut, SlidersHorizontal, Users } from "lucide-react";
+import { CircleUser, Coffee, House, LogOut, Users } from "lucide-react";
 import { signOutAction } from "@/app/actions";
 import { AddContactModal } from "@/components/add-contact-modal";
 import { NavLink } from "@/components/nav-link";
@@ -32,16 +32,16 @@ function AppShell({ email, children }: { email: string; children: React.ReactNod
   const nav = (
     <>
       <NavLink href="/">
-        <House className="size-5" strokeWidth={1.75} /> Today
+        <House className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Today</span>
       </NavLink>
       <NavLink href="/catch-up">
-        <Coffee className="size-5" strokeWidth={1.75} /> Catch up
+        <Coffee className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Catch up</span>
       </NavLink>
       <NavLink href="/contacts">
-        <Users className="size-5" strokeWidth={1.75} /> Contacts
+        <Users className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Contacts</span>
       </NavLink>
-      <NavLink href="/onboarding">
-        <SlidersHorizontal className="size-5" strokeWidth={1.75} /> Setup
+      <NavLink href="/me">
+        <CircleUser className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Me</span>
       </NavLink>
     </>
   );
@@ -56,13 +56,17 @@ function AppShell({ email, children }: { email: string; children: React.ReactNod
         <div className="mt-6 border-t border-slate-100 pt-6">
           <AddContactModal defaultDate={defaultEvalDate()} />
         </div>
-        <form action={signOutAction} className="mt-auto flex items-center gap-3 rounded-xl px-2 py-2">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink-50 text-sm font-semibold text-ink-800">
-            {email[0]!.toUpperCase()}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700" title={email}>
-            {email}
-          </span>
+        <form action={signOutAction} className="mt-auto flex items-center gap-1 rounded-xl">
+          <Link
+            href="/me"
+            title="Your profile and settings"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-slate-50"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink-50 text-sm font-semibold text-ink-800">
+              {email[0]!.toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{email}</span>
+          </Link>
           <button type="submit" title="Sign out" className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
             <LogOut className="size-4" />
           </button>
@@ -75,7 +79,7 @@ function AppShell({ email, children }: { email: string; children: React.ReactNod
           <Link href="/" className="mr-1 flex shrink-0 items-center gap-2 font-bold tracking-tight">
             <Logo size={20} /> <span className="hidden sm:inline">WarmSignal</span>
           </Link>
-          <nav className="flex gap-1 [&_a]:gap-2 [&_a]:px-2.5 [&_a]:py-1.5 [&_a]:text-sm">{nav}</nav>
+          <nav className="flex min-w-0 gap-1 overflow-x-auto [&_a]:shrink-0 [&_a]:gap-2 [&_a]:px-2.5 [&_a]:py-1.5 [&_a]:text-sm">{nav}</nav>
           <div className="ml-auto">
             <AddContactModal defaultDate={defaultEvalDate()} compact />
           </div>

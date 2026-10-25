@@ -621,7 +621,7 @@ function Section({ eyebrow, title, lead, children }: { eyebrow: string; title: s
   );
 }
 
-function Group({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+export function Group({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-2.5">
       <div className="text-sm font-semibold text-slate-700">{label}</div>
@@ -630,7 +630,7 @@ function Group({ label, children }: { label: React.ReactNode; children: React.Re
   );
 }
 
-function Chips({
+export function Chips({
   options,
   selected,
   onChange,
@@ -671,7 +671,7 @@ function Chips({
   );
 }
 
-function Slider({
+export function Slider({
   label,
   value,
   min,
@@ -707,7 +707,7 @@ function Slider({
   );
 }
 
-function Segmented({
+export function Segmented({
   options,
   value,
   onChange,
