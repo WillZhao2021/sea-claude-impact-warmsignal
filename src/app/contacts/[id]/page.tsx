@@ -16,6 +16,7 @@ import {
 import { addNoteAction } from "@/app/actions";
 import { EnrichPanel } from "@/components/enrich-panel";
 import { AttributeChips, EnrichmentView, GoalFitChip } from "@/components/enrichment-view";
+import { DictationTextarea } from "@/components/dictation";
 import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, input, MoveTag, SignalBars } from "@/components/ui";
 import { defaultEvalDate } from "@/lib/briefing";
@@ -124,11 +125,11 @@ export default async function ContactPage({ params }: PageProps<"/contacts/[id]"
               <MessageSquareText className="size-5 text-ink-500" /> Log a conversation
             </h2>
             <input type="hidden" name="contact_id" value={contact.id} />
-            <textarea
+            <DictationTextarea
               name="notes"
               required
               rows={5}
-              placeholder={`What did you learn from ${contact.name.split(" ")[0]}? Goals, challenges, what they're looking for, what they could offer others…`}
+              placeholder={`What did you learn from ${contact.name.split(" ")[0]}? Goals, challenges, what they're looking for, what they could offer others… (or tap the mic and say it)`}
               className={`${input} leading-relaxed`}
             />
             <div className="flex flex-wrap items-center justify-between gap-3">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowUp,
   Check,
@@ -19,20 +20,45 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { chatUploadAction } from "@/app/chat/actions";
+import { appendText, MicButton } from "../dictation";
 import type { ChatCard, ChatFrame, ChatRow, PersonCard } from "@/lib/chat/cards";
 import { whatsappLink } from "@/lib/phonebook";
 import { Avatar, btn, card as cardCls, MoveTag, SignalBars } from "../ui";
 
 type Live = { text: string; cards: ChatCard[]; tool: string | null };
 
-const STARTERS = ["Who should I talk to today?", "I just had coffee with someone", "Find someone in my network", "Help me get more referrals"];
+/** Chat-tab suggestions, always above the message box: ways to fill in the network. */
+const SUGGESTIONS = [
+  "What's missing in my network?",
+  "Look up my closest 5 on the web",
+  "Add phone numbers",
+  "Upload LinkedIn connections",
+  "I just met someone new",
+  "Who should I talk to today?",
+];
 
 type Mode = "onboarding" | "main";
 
-export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: ChatRow[]; redo?: boolean }) {
+export function Chat({
+  mode,
+  initial,
+  redo = false,
+  autoOpen = true,
+  header,
+}: {
+  mode: Mode;
+  initial: ChatRow[];
+  redo?: boolean;
+  /** Let the assistant speak first on load (the server still skips it if the thread is fresh). */
+  autoOpen?: boolean;
+  /** Shown above the conversation (the Setup checklist). */
+  header?: React.ReactNode;
+}) {
+  const router = useRouter();
   const [rows, setRows] = useState<ChatRow[]>(initial);
   const [live, setLive] = useState<Live | null>(null);
   const [input, setInput] = useState("");
+  const [interim, setInterim] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -61,6 +87,8 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
       const finish = () => {
         setRows((r) => (acc.text || acc.cards.length ? [...r, { id: `a${Date.now()}`, role: "assistant", text: acc.text, cards: acc.cards }] : r));
         setLive(null);
+        // Setup's checklist is server-rendered from saved data: refresh it after each turn.
+        if (mode === "onboarding") router.refresh();
       };
       try {
         const res = await fetch("/api/chat", {
@@ -107,16 +135,16 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
       }
       finish();
     },
-    [live, mode],
+    [live, mode, router],
   );
 
   // On load the assistant speaks first: onboarding greets new users; the main chat asks about
   // people with missing information (the server skips this if the conversation is still fresh).
   useEffect(() => {
-    if (started.current) return;
+    if (started.current || !autoOpen) return;
     started.current = true;
     void send("", true);
-  }, [send]);
+  }, [send, autoOpen]);
 
   async function upload(file: File | undefined) {
     if (!file || busy) return;
@@ -135,6 +163,7 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-9rem)] max-w-3xl flex-col lg:h-[calc(100dvh-6rem)]">
+      {header}
       <div className="flex-1 space-y-5 overflow-y-auto pb-6 pr-1">
         {rows.length === 0 && !live && (
           <div className="pt-16 text-center">
@@ -146,16 +175,11 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {mode === "onboarding"
-                ? "A few quick questions, then your contacts. Takes about five minutes."
-                : "Tell me about a conversation, ask who to reach out to, or drop in a contacts file."}
+                ? redo
+                  ? "Tell me what you'd like to change."
+                  : "A few quick questions, then your contacts. Takes about five minutes."
+                : "Tell me what you know about people, or pick a suggestion below."}
             </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {mode === "main" && STARTERS.map((s) => (
-                <button key={s} type="button" onClick={() => send(s)} className={`rounded-full px-3.5 py-1.5 text-sm ${btn.secondary}`}>
-                  {s}
-                </button>
-              ))}
-            </div>
           </div>
         )}
         {rows.map((r) => (
@@ -173,6 +197,20 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
         <div ref={endRef} />
       </div>
 
+      {mode === "main" && !busy && (
+        <div className="-mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pb-1">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => send(s)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${btn.secondary}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -200,9 +238,10 @@ export function Chat({ mode, initial, redo = false }: { mode: Mode; initial: Cha
             }
           }}
           rows={1}
-          placeholder="Message Daily Networker…"
+          placeholder={interim ? `${interim}…` : "Message Daily Networker… (or tap the mic)"}
           className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm outline-none placeholder:text-slate-400"
         />
+        <MicButton disabled={busy} onFinal={(p) => setInput((v) => appendText(v, p))} onInterim={setInterim} />
         <button
           type="submit"
           disabled={busy || !input.trim()}
