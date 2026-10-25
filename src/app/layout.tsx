@@ -35,7 +35,7 @@ function AppShell({ email, children }: { email: string; children: React.ReactNod
         <House className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Today</span>
       </NavLink>
       <NavLink href="/catch-up">
-        <Coffee className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Catch up</span>
+        <Coffee className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Keep warm</span>
       </NavLink>
       <NavLink href="/contacts">
         <Users className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Contacts</span>

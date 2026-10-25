@@ -4,11 +4,16 @@ import { TONE } from "./draft";
 import { profilePrompt, type Profile } from "./profile";
 import { coolingScore, daysBetween, MIN_PROPOSED_STRENGTH, STALE_AFTER_DAYS } from "./scoring";
 import { must, type Ctx } from "./supabase";
+import { buildToday } from "./today";
 import type { Contact, Interaction, Signal } from "./types";
 
-// Catch-up deck: people the user should meet with to keep the relationship warm, one card at a time.
-// Ranked deterministically: a cooling connection matters most, a concrete reason to reach out
-// (something the user can give them) next, then how close they are.
+// Catch-up notes, in two modes:
+// - Keep warm (the /catch-up deck): no-agenda upkeep with the user's closer people whose
+//   connection is fading. Anyone on Today's list is left out, so the deck and Today never
+//   overlap: Today is for people with a reason to talk now, the deck for staying close without one.
+//   Ranked only on how much the connection has cooled and how close they are.
+// - Reconnect (Today's cards without an intro): a catch-up note that can mention the reason
+//   (something they need, an intro the user could offer, news).
 
 export const DECK_SIZE = 10;
 export const SNOOZE_DAYS = 14;
@@ -16,10 +21,15 @@ export const SNOOZE_DAYS = 14;
 export const RECENT_OUTREACH_DAYS = 21;
 /** Below this, it's too soon since the last conversation to suggest another. */
 export const MIN_DAYS_SINCE_MET = 30;
+/** Keep warm is for people the user is close to ("know well" or closer); weaker ties belong on Today when there's a reason. */
+export const KEEP_WARM_MIN_STRENGTH = 3;
 
-const CATCH_UP_WEIGHTS = { cooling: 0.5, reason: 0.3, relationship: 0.2 } as const;
+const KEEP_WARM_WEIGHTS = { cooling: 0.6, relationship: 0.4 } as const;
 
+export type DraftMode = "keep_warm" | "reconnect";
 export type ReasonKind = "give" | "need" | "news" | "last_time";
+/** Keep-warm cards and drafts use only shared history and talking points, never asks or offers. */
+const KEEP_WARM_KINDS: ReadonlySet<ReasonKind> = new Set(["last_time", "news"]);
 export type Reason = { kind: ReasonKind; text: string };
 
 /** What a deck card renders. Shaped for the client, not raw rows. */
@@ -94,12 +104,8 @@ function reasonsFor(
 
 function toCard(c: Contact, reasons: Reason[], evalDate: string): CatchUpCard {
   const daysSinceMet = c.last_interaction_date ? daysBetween(c.last_interaction_date, evalDate) : null;
-  const reason = reasons.some((r) => r.kind === "give") ? 1 : reasons.some((r) => r.kind === "need") ? 0.7 : reasons.some((r) => r.kind === "news") ? 0.4 : 0;
   const score =
-    100 *
-    (CATCH_UP_WEIGHTS.cooling * coolingScore(daysSinceMet) +
-      CATCH_UP_WEIGHTS.reason * reason +
-      CATCH_UP_WEIGHTS.relationship * (c.relationship_strength / 5));
+    100 * (KEEP_WARM_WEIGHTS.cooling * coolingScore(daysSinceMet) + KEEP_WARM_WEIGHTS.relationship * (c.relationship_strength / 5));
   return {
     id: c.id,
     name: c.name,
@@ -113,31 +119,42 @@ function toCard(c: Contact, reasons: Reason[], evalDate: string): CatchUpCard {
 }
 
 function isDue(c: Contact, evalDate: string, restDays: number): boolean {
-  if (c.relationship_strength < MIN_PROPOSED_STRENGTH) return false;
+  if (c.relationship_strength < Math.max(MIN_PROPOSED_STRENGTH, KEEP_WARM_MIN_STRENGTH)) return false;
   if (c.outreach_snoozed_until && c.outreach_snoozed_until > evalDate) return false;
   if (c.last_outreach_at && daysBetween(c.last_outreach_at, evalDate) < restDays) return false;
   if (c.last_interaction_date && daysBetween(c.last_interaction_date, evalDate) < MIN_DAYS_SINCE_MET) return false;
   return true;
 }
 
-/** Today's catch-up deck, highest priority first. Pass the briefing if it's already built. */
-export async function buildCatchUpDeck(ctx: Ctx, evalDate: string, briefing?: Briefing): Promise<CatchUpCard[]> {
-  const inputs = await loadInputs(ctx, evalDate, briefing);
+const keepWarmOnly = (reasons: Reason[]) => reasons.filter((r) => KEEP_WARM_KINDS.has(r.kind));
+
+/** The keep-warm deck, highest priority first: closer people who are cooling and not on Today's list. */
+export async function buildCatchUpDeck(ctx: Ctx, evalDate: string): Promise<CatchUpCard[]> {
+  const today = await buildToday(ctx, evalDate);
+  const onToday = new Set(today.people.map((p) => p.contact.id));
+  const inputs = await loadInputs(ctx, evalDate, today.briefing);
   const restDays = inputs.briefing.profile?.rest_days ?? RECENT_OUTREACH_DAYS;
   return inputs.contacts
-    .filter((c) => isDue(c, evalDate, restDays))
-    .map((c) => toCard(c, reasonsFor(c, inputs, evalDate), evalDate))
+    .filter((c) => !onToday.has(c.id) && isDue(c, evalDate, restDays))
+    .map((c) => toCard(c, keepWarmOnly(reasonsFor(c, inputs, evalDate)), evalDate))
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
     .slice(0, DECK_SIZE);
 }
 
 // ---------- Drafts ----------
 
-function system(profile: Profile | null): string {
-  return `You draft short messages for the user, suggesting they and someone in their network meet up (coffee, lunch, or a call). ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and don't pitch the user's services. Use only the facts provided: never invent shared history, personality traits, or details. If the user can offer an introduction, mention it as something they'd like to talk through, without naming the other person. Never reveal private context or sensitivities. Output only the message text, with no signature line.`;
+const PURPOSE: Record<DraftMode, string> = {
+  reconnect:
+    "If the user can offer an introduction, mention it as something they'd like to talk through, without naming the other person.",
+  keep_warm:
+    "This is a no-agenda check-in, purely to stay close: never ask for anything, offer introductions or services, or bring up their needs or business problems. If there's a recent public milestone, a brief congratulations is fine.",
+};
+
+function system(profile: Profile | null, mode: DraftMode): string {
+  return `You draft short messages for the user, suggesting they and someone in their network meet up (coffee, lunch, or a call). ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and don't pitch the user's services. Use only the facts provided: never invent shared history, personality traits, or details. ${PURPOSE[mode]} Never reveal private context or sensitivities. Output only the message text, with no signature line.`;
 }
 
-function prompt(card: CatchUpCard, c: Contact): string {
+function prompt(card: CatchUpCard, c: Contact, mode: DraftMode): string {
   const when = card.daysSinceMet == null ? "unknown" : `${card.daysSinceMet} days ago`;
   const label: Record<ReasonKind, string> = {
     give: "Something the user can offer them",
@@ -151,19 +168,39 @@ Last spoke: ${when}
 ${card.reasons.map((r) => `${label[r.kind]}: ${r.text}`).join("\n")}
 Sensitivities to respect: ${c.introduction_preferences ?? "none recorded"}
 
-Write a 40-80 word message to ${c.name.split(" ")[0]} suggesting they catch up in person or on a call soon. Give one specific, genuine reason drawn from the facts above, and propose a concrete next step (e.g. "free for coffee in the next couple of weeks?").`;
+Write a 40-80 word message to ${c.name.split(" ")[0]} suggesting they catch up in person or on a call soon. ${
+    mode === "keep_warm"
+      ? "Keep it personal and light: refer to something from their last conversation if there is one, otherwise simply say it's been a while."
+      : "Give one specific, genuine reason drawn from the facts above."
+  } Propose a concrete next step (e.g. "free for coffee in the next couple of weeks?").`;
 }
 
-/** Returns the cached catch-up draft for a contact, generating and saving it if missing. */
-export async function getOrCreateCatchUpDraft(ctx: Ctx, contactId: string, evalDate: string, fresh = false): Promise<string> {
+/**
+ * Returns the cached catch-up draft for a contact, generating and saving it if missing or written
+ * for the other mode. Drafts saved before modes existed have no mode, so they regenerate too.
+ */
+export async function getOrCreateCatchUpDraft(
+  ctx: Ctx,
+  contactId: string,
+  evalDate: string,
+  fresh = false,
+  mode: DraftMode = "reconnect",
+): Promise<string> {
   const { db, ownerId } = ctx;
   const contact = must<Contact>(await db.from("contacts").select("*").eq("owner_id", ownerId).eq("id", contactId).single());
-  if (contact.outreach_draft && !fresh) return contact.outreach_draft;
+  if (contact.outreach_draft && contact.outreach_draft_mode === mode && !fresh) return contact.outreach_draft;
 
   const inputs = await loadInputs(ctx, evalDate);
-  const card = toCard(contact, reasonsFor(contact, inputs, evalDate), evalDate);
-  const outreach_draft = await textCall({ system: system(inputs.briefing.profile), user: prompt(card, contact) });
-  must(await db.from("contacts").update({ outreach_draft }).eq("owner_id", ownerId).eq("id", contactId));
+  const reasons = reasonsFor(contact, inputs, evalDate);
+  const card = toCard(contact, mode === "keep_warm" ? keepWarmOnly(reasons) : reasons, evalDate);
+  const outreach_draft = await textCall({ system: system(inputs.briefing.profile, mode), user: prompt(card, contact, mode) });
+  must(
+    await db
+      .from("contacts")
+      .update({ outreach_draft, outreach_draft_mode: mode })
+      .eq("owner_id", ownerId)
+      .eq("id", contactId),
+  );
   return outreach_draft;
 }
 

@@ -17,15 +17,15 @@ export default async function CatchUpPage({ searchParams }: PageProps<"/catch-up
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Catch up"
-        title="Who should you see this week?"
-        subtitle="One person at a time. Swipe right to suggest meeting up; Claude drafts the note."
+        eyebrow="Keep warm"
+        title="Stay close to your people"
+        subtitle="People you know well but haven't seen in a while. No agenda, just a check-in: swipe right to suggest meeting up. Anyone you have a reason to contact is on Today instead."
       />
       {count ? (
         <CatchUpDeck cards={await buildCatchUpDeck(ctx, evalDate)} evalDate={evalDate} snoozeDays={SNOOZE_DAYS} />
       ) : (
         <div className={`${card} mx-auto max-w-md px-6 py-12 text-center`}>
-          <p className="text-sm text-slate-500">Add some contacts first, then come back to catch up with them.</p>
+          <p className="text-sm text-slate-500">Add some contacts first, then come back to keep in touch with them.</p>
           <Link href="/" className={`mt-5 inline-flex rounded-lg px-3.5 py-2 text-sm font-medium ${btn.primary}`}>
             Get started
           </Link>

@@ -13,6 +13,7 @@ export type Contact = {
   last_outreach_at: string | null;
   outreach_snoozed_until: string | null;
   outreach_draft: string | null;
+  outreach_draft_mode: "keep_warm" | "reconnect" | null;
 };
 
 export type SourcedItem = { text: string; source_url: string; date: string | null };

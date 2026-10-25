@@ -388,9 +388,9 @@ function DeckDone({
         <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
           <Check className="size-6" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-slate-900">Your network is warm</h2>
+        <h2 className="mt-4 text-lg font-semibold text-slate-900">Everyone close is warm</h2>
         <p className="mt-1 max-w-sm text-sm text-slate-500">
-          No one is due for a catch-up right now. Log your conversations on the Contacts page so WarmSignal knows who you&apos;ve seen.
+          Nobody you know well is overdue for a catch-up, apart from the people on Today. Log your conversations on the Contacts page so WarmSignal knows who you&apos;ve seen.
         </p>
       </div>
     );

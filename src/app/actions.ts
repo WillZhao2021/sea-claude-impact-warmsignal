@@ -252,7 +252,7 @@ export async function catchUpDraftAction(contactId: string, evalDate: string, fr
   if (typeof contactId !== "string" || !isDate(evalDate)) return { ok: false, error: "Invalid request" };
   const ctx = await requireCtx(); // outside try: its redirect to /login must propagate
   try {
-    return { ok: true, value: await getOrCreateCatchUpDraft(ctx, contactId, evalDate, fresh === true) };
+    return { ok: true, value: await getOrCreateCatchUpDraft(ctx, contactId, evalDate, fresh === true, "keep_warm") };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
