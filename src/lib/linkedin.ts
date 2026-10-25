@@ -1,8 +1,12 @@
 import Papa from "papaparse";
 
-// LinkedIn's official data export (Settings → Data privacy → Get a copy of your data → Connections).
-// Connections.csv starts with a "Notes:" preamble before the real header row:
-//   First Name,Last Name,URL,Email Address,Company,Position,Connected On
+// LinkedIn connection lists, in two formats:
+// - LinkedIn's official data export (Settings → Data privacy → Get a copy of your data → Connections).
+//   Connections.csv starts with a "Notes:" preamble before the real header row:
+//     First Name,Last Name,URL,Email Address,Company,Position,Connected On
+// - Exports from scraping tools and browser extensions:
+//     Name,Current Company,Current Role,Previous Companies
+//   where Name is often a spreadsheet formula: =HYPERLINK("https://www.linkedin.com/in/…","Jane Doe").
 // Pure parsing, no server imports: used by onboarding (in the browser) and the Contacts import.
 
 export const LINKEDIN_EXPORT_URL = "https://www.linkedin.com/mypreferences/d/download-my-data";
@@ -40,11 +44,17 @@ function cleanName(raw: string): string {
     .trim();
 }
 
-/** Parses a LinkedIn Connections.csv, newest connections first. Returns null for any other CSV. */
+/** =HYPERLINK("url","label") → { url, label }. Any other value is returned as the label. */
+function unwrapHyperlink(value: string): { label: string; url: string | null } {
+  const m = value.trim().match(/^=HYPERLINK\(\s*"([^"]*)"\s*[,;]\s*"([^"]*)"\s*\)$/i);
+  return m ? { label: m[2], url: m[1] || null } : { label: value, url: null };
+}
+
+/** Parses a LinkedIn connection list, newest connections first. Returns null for any other CSV. */
 export function parseLinkedInConnections(text: string): LinkedInConnection[] | null {
   const lines = text.replace(/^﻿/, "").split(/\r?\n/);
   const headerAt = lines.findIndex((l) => /^"?first name"?\s*,\s*"?last name"?\s*,/i.test(l.trim()));
-  if (headerAt < 0) return null;
+  if (headerAt < 0) return parseToolExport(lines);
 
   const parsed = Papa.parse<Record<string, string>>(lines.slice(headerAt).join("\n"), {
     header: true,
@@ -62,4 +72,30 @@ export function parseLinkedInConnections(text: string): LinkedInConnection[] | n
     }))
     .filter((c) => c.name)
     .sort((a, b) => (b.connected_on ?? "").localeCompare(a.connected_on ?? ""));
+}
+
+/** Name,Current Company,Current Role[,Previous Companies]: kept in file order (no connection dates). */
+function parseToolExport(lines: string[]): LinkedInConnection[] | null {
+  const header = Papa.parse<string[]>(lines[0] ?? "").data[0]?.map((h) => h.trim().toLowerCase()) ?? [];
+  if (!header.includes("name") || !(header.includes("current company") || header.includes("current role"))) return null;
+
+  const parsed = Papa.parse<Record<string, string>>(lines.join("\n"), {
+    header: true,
+    skipEmptyLines: "greedy",
+    transformHeader: (h) => h.trim().toLowerCase(),
+  });
+  const get = (r: Record<string, string>, key: string) => (r[key] ?? "").trim();
+  return parsed.data
+    .map((r) => {
+      const { label, url } = unwrapHyperlink(get(r, "name"));
+      return {
+        name: cleanName(label),
+        company: get(r, "current company") || null,
+        title: get(r, "current role") || null,
+        url,
+        connected_on: null,
+      };
+    })
+    // A name that is still a formula (or starts like one) isn't a name.
+    .filter((c) => c.name && !/^[=+@-]/.test(c.name));
 }

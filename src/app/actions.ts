@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { requireCtx, userDb } from "@/lib/auth";
 import { defaultEvalDate } from "@/lib/briefing";
 import { getOrCreateCatchUpDraft, recordDecision, type CatchUpDecision } from "@/lib/catch-up";
-import { importContactsCsv } from "@/lib/contacts";
+import { ImportError, importContactsCsv } from "@/lib/contacts";
 import { loadDemoData, removeDemoData } from "@/lib/demo";
 import { ensureDrafts } from "@/lib/draft";
 import { enrichAndSave, enrichPending } from "@/lib/enrich";
@@ -108,15 +108,34 @@ export async function addNoteAction(formData: FormData) {
   revalidatePath(`/contacts/${contactId}`);
 }
 
-export async function importCsvAction(formData: FormData) {
+export type ImportState = { error: string | null; message?: string };
+
+/** Contacts page import. Returns a message for the import card rather than throwing, so a bad file never breaks the page. */
+export async function importCsvAction(_prev: ImportState, formData: FormData): Promise<ImportState> {
   const ctx = await requireCtx();
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) throw new Error("Choose a CSV file");
-  await importContactsCsv(ctx, await file.text());
-  // Enrich new contacts from the web in the background, after the response is sent.
-  const bg = serviceCtx(ctx.ownerId);
-  after(() => enrichPending(bg).finally(() => syncDocuments(ctx)));
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a CSV file first." };
+  if (file.size > 5_000_000) return { error: "That file is over 5 MB. Export fewer rows and try again." };
+
+  let imported: number;
+  try {
+    imported = await importContactsCsv(ctx, await file.text());
+  } catch (e) {
+    console.error("CSV import failed:", e);
+    return { error: e instanceof ImportError ? e.message : "Something went wrong importing that file. Please try again." };
+  }
+  if (imported) {
+    // Enrich new contacts from the web in the background, after the response is sent.
+    const bg = serviceCtx(ctx.ownerId);
+    after(() => enrichPending(bg).finally(() => syncDocuments(ctx)));
+  }
   revalidatePath("/contacts");
+  return {
+    error: null,
+    message: imported
+      ? `Imported ${imported} contact${imported === 1 ? "" : "s"}. New ones are looked up on the web in the background.`
+      : "No new contacts: everyone in that file is already in your network.",
+  };
 }
 
 export type CreateContactState = { error: string | null };

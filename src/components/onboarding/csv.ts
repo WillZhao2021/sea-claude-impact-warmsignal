@@ -21,8 +21,8 @@ export type ColumnMap = Record<FieldKey, number>; // -1 = not in file
 
 const GUESS: Record<FieldKey, RegExp> = {
   name: /^(full ?name|name|contact( name)?)$/i,
-  company: /^(company|organi[sz]ation|company name|employer|account)$/i,
-  title: /^(title|job title|position|role)$/i,
+  company: /^(company|organi[sz]ation|company name|employer|account|current company)$/i,
+  title: /^(title|job title|position|role|current role|current title|headline)$/i,
   industry: /^(industry|sector|vertical)$/i,
   status: /^(status|warmth|relationship( strength)?|temperature|strength|tier)$/i,
   notes: /^(notes?|owner notes|comments?|context|description)$/i,
