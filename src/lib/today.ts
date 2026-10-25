@@ -3,6 +3,7 @@ import { INDUSTRIES, type Goal, type Profile } from "./profile";
 import { coolingScore, daysBetween, MIN_PROPOSED_STRENGTH, STALE_AFTER_DAYS } from "./scoring";
 import { must, type Ctx } from "./supabase";
 import type { Contact, Signal } from "./types";
+import { profileFit, type ProfileFit } from "./vectors";
 
 // Today: the people worth talking to today, and why. An introduction you can make is one
 // reason among several; the others are a cooling relationship, something timely (a deadline
@@ -35,6 +36,8 @@ const DEFAULT_REST_DAYS = 21;
 /** Just talked: don't suggest them again unless there's an intro to follow up on. */
 const JUST_SPOKE_DAYS = 7;
 const NEWS_WINDOW_DAYS = 90;
+/** Semantic industry fit below this isn't shown or counted (profileFit is calibrated per industry). */
+const MIN_SEMANTIC_FIT = 0.6;
 const TIMELY_NEWS = new Set(["funding", "hiring", "launch", "leadership_change", "partnership"]);
 
 export type ReasonKind = FactorKey;
@@ -114,6 +117,7 @@ function assess(
   introsFor: Map<string, Candidate[]>,
   needsFor: Map<string, NeedRow[]>,
   profile: Profile | null,
+  semantic: ProfileFit | undefined,
 ): TodayPerson | null {
   if (c.relationship_strength < MIN_PROPOSED_STRENGTH) return null;
   if (c.outreach_snoozed_until && c.outreach_snoozed_until > evalDate) return null;
@@ -208,9 +212,24 @@ function assess(
         detail: "Lead with help, not a pitch.",
         source: { label: `${first(c.name)}, ${offerHit.interactions.date}: “${offerHit.supporting_text}”` },
       });
-    } else if (ind || role) {
-      factors.fit = ind && role ? 0.8 : 0.5;
-      reasons.push({ kind: "fit", title: `Matches your ideal client`, detail: [ind, c.title].filter(Boolean).join(" · ") });
+    } else {
+      // Industry: the stronger of a keyword match (0.5) and the calibrated semantic match (up to 0.6).
+      // Role: keyword match only (embeddings can't tell roles apart). Ideal client in both = 0.8+.
+      const semanticFit = semantic && semantic.score >= MIN_SEMANTIC_FIT ? semantic.score : 0;
+      const industry = Math.max(ind ? 0.5 : 0, 0.6 * semanticFit);
+      const fit = Math.min(1, industry + (role ? 0.3 : 0));
+      if (fit > 0) {
+        factors.fit = fit;
+        const industryLabel =
+          0.6 * semanticFit > (ind ? 0.5 : 0)
+            ? `${semantic!.matched.label} (similar to your target industry, ${Math.round(semanticFit * 100)}% match)`
+            : ind;
+        reasons.push({
+          kind: "fit",
+          title: "Matches your ideal client",
+          detail: [industryLabel, role ? c.title : null].filter(Boolean).join(" · "),
+        });
+      }
     }
   }
 
@@ -253,6 +272,8 @@ export async function buildToday(ctx: Ctx, evalDate: string): Promise<Today> {
       .then((r) => must<NeedRow[]>(r)),
   ]);
   const profile = briefing.profile;
+  // Empty when embeddings aren't ready or the network is too small to calibrate; rules still apply.
+  const semantic = await profileFit(ctx, profile);
 
   // Eligible intros per recipient, best first (briefing order is already by score).
   const introsFor = new Map<string, Candidate[]>();
@@ -263,7 +284,7 @@ export async function buildToday(ctx: Ctx, evalDate: string): Promise<Today> {
   for (const n of needs) needsFor.set(n.contact_id, [...(needsFor.get(n.contact_id) ?? []), n]);
 
   const ranked = contacts
-    .map((c) => assess(c, evalDate, introsFor, needsFor, profile))
+    .map((c) => assess(c, evalDate, introsFor, needsFor, profile, semantic.get(c.id)))
     .filter((p): p is TodayPerson => p !== null)
     .sort((a, b) => b.score - a.score || a.contact.id.localeCompare(b.contact.id));
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { Suspense } from "react";
 import {
   ArrowLeftRight,
@@ -43,6 +44,8 @@ import { getOrCreateCatchUpDraft } from "@/lib/catch-up";
 import { draftKindFor, getOrCreateDraft } from "@/lib/draft";
 import { getProfile } from "@/lib/profile";
 import { WEIGHTS } from "@/lib/scoring";
+import { serviceCtx } from "@/lib/supabase";
+import { syncContactDocuments } from "@/lib/vectors";
 import { buildToday, FACTOR_LABELS, type FactorKey, type ReasonKind, type TodayPerson } from "@/lib/today";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +63,9 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
   if (!contactCount) return <Welcome />;
 
   const today = await buildToday(ctx, evalDate);
+  // Keep contact embeddings current for semantic fit (a no-op when nothing changed).
+  const bg = serviceCtx(ctx.ownerId);
+  after(() => syncContactDocuments(bg).catch((e) => console.error("syncContactDocuments failed:", e)));
   const { briefing } = today;
   const n = today.people.length;
 
