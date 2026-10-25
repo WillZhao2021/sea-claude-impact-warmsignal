@@ -2,7 +2,7 @@
 
 This file lists everything WarmSignal stores about a person in a user's network, along with where each item comes from, who writes it, how fresh it stays, and where it is allowed to go. Each user's rows belong to that user (`owner_id`) and are protected by RLS.
 
-Status: ✅ = exists in the schema today · 🆕 = proposed (needs a migration)
+Status: ✅ = implemented · 🆕 = proposed, not yet implemented
 
 ## Rules that apply to every field
 
@@ -24,8 +24,8 @@ Status: ✅ = exists in the schema today · 🆕 = proposed (needs a migration)
 | `external_id` | text | | ✅ | import | Unique per owner. **For LinkedIn imports, use the normalized `linkedin_url`** so re-uploads update existing rows |
 | `name` | text | ✔ | ✅ | import / user | |
 | `linkedin_url` | text | | 🆕 | LinkedIn export | Lowercase, no trailing slash. Main identity anchor for enrichment |
-| `email` | text | | 🆕 | LinkedIn export (only when the connection shares it) / vCard | **Private**: never sent to an LLM or Tavily |
-| `phone` | text (E.164) | | 🆕 | vCard / Contact Picker / typed on the card | **Private**: only used for `wa.me/<phone>` and `sms:`. If missing, fall back to `wa.me/?text=` |
+| `email` | text | | ✅ | LinkedIn export (only when the connection shares it) / vCard | **Private**: never sent to an LLM or Tavily |
+| `phone` | text (E.164) | | ✅ | vCard / Contact Picker / typed on the card | **Private**: only used for `wa.me/<phone>` and `sms:`. If missing, fall back to `wa.me/?text=` |
 | `source` | text[] | | 🆕 | import | Any of `linkedin_export`, `vcard`, `manual`, `demo` |
 
 ### Professional profile
@@ -61,7 +61,7 @@ Status: ✅ = exists in the schema today · 🆕 = proposed (needs a migration)
 |---|---|---|---|
 | `enrichment` | jsonb (`Enrichment` in `src/lib/types.ts`) | ✅ | `status`, `identity_confidence` (`high`/`medium` to keep), `summary`, `recent_signals[]`, `possible_offers[]`, `sources[]`. Every item has a `source_url` from the search results |
 | `enriched_at` | timestamptz | ✅ | |
-| `enrichment_stale_after` | interval / derived | 🆕 | Warm contacts (strength ≥3): **14 days**; others: **60 days**; never for `demo`-only rows |
+| refresh cadence | `REFRESH_AFTER_DAYS` in `src/lib/enrich.ts` | ✅ | Enriched on creation or import, then re-enriched by the daily cron (`/api/cron/enrich`) once older than **14 days**. Fictional demo contacts are skipped |
 
 **Enrichment queries, in priority order** (person-name searches are mostly namesakes for private individuals):
 1. `linkedin_url`, read directly to confirm identity (title, company, location).
@@ -106,7 +106,7 @@ Claude stores its assessment of each pair (`give_value` 0–5, `timeliness` 0–
 
 New contacts get `relationship_strength = 2` until the user sorts them in onboarding. On re-upload, a row matched by `external_id` updates `company`/`title`. A change is appended to `profile_history`, and fields the user edited by hand are not overwritten.
 
-**vCard / Google Contacts CSV** → fills `phone` and `email` on existing contacts. Match on email first, then exact normalized name; ask the user when it's ambiguous. Contacts that aren't on LinkedIn are created with `source = vcard`.
+**vCard / Google Contacts CSV** (✅ `src/lib/phonebook.ts`, Contacts → Add phone numbers) → fills `phone` and `email` on existing contacts. Match on email first, then exact normalized name; ask the user when it's ambiguous. Contacts that aren't on LinkedIn are created with `source = vcard`.
 
 ## Example (demo record)
 
