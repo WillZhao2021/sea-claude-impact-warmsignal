@@ -1,16 +1,18 @@
 import { textCall } from "./claude";
 import { buildBriefing, type Briefing } from "./briefing";
+import { TONE } from "./draft";
+import { profilePrompt, type Profile } from "./profile";
 import { coolingScore, daysBetween, MIN_PROPOSED_STRENGTH, STALE_AFTER_DAYS } from "./scoring";
 import { must, type Ctx } from "./supabase";
 import type { Contact, Interaction, Signal } from "./types";
 
-// Catch-up deck: people Alonso should meet with to keep the relationship warm, one card at a time.
+// Catch-up deck: people the user should meet with to keep the relationship warm, one card at a time.
 // Ranked deterministically: a cooling connection matters most, a concrete reason to reach out
-// (something he can give them) next, then how close they are.
+// (something the user can give them) next, then how close they are.
 
 export const DECK_SIZE = 10;
 export const SNOOZE_DAYS = 14;
-/** Don't re-suggest someone he just messaged; give them time to reply and meet. */
+/** Don't re-suggest someone just messaged; give them time to reply and meet. Onboarding's rest_days overrides it. */
 export const RECENT_OUTREACH_DAYS = 21;
 /** Below this, it's too soon since the last conversation to suggest another. */
 export const MIN_DAYS_SINCE_MET = 30;
@@ -64,7 +66,7 @@ function reasonsFor(
   const reasons: Reason[] = [];
   const first = (name: string) => name.split(" ")[0];
 
-  // An introduction he could offer them is the best reason to get in touch.
+  // An introduction the user could offer them is the best reason to get in touch.
   const intro = [...briefing.recommendations, ...briefing.alsoConsidered].find((x) => x.recipient.id === c.id);
   if (intro) {
     reasons.push({ kind: "give", text: `You could introduce them to ${intro.proposed.name} (${intro.need.description})` });
@@ -110,10 +112,10 @@ function toCard(c: Contact, reasons: Reason[], evalDate: string): CatchUpCard {
   };
 }
 
-function isDue(c: Contact, evalDate: string): boolean {
+function isDue(c: Contact, evalDate: string, restDays: number): boolean {
   if (c.relationship_strength < MIN_PROPOSED_STRENGTH) return false;
   if (c.outreach_snoozed_until && c.outreach_snoozed_until > evalDate) return false;
-  if (c.last_outreach_at && daysBetween(c.last_outreach_at, evalDate) < RECENT_OUTREACH_DAYS) return false;
+  if (c.last_outreach_at && daysBetween(c.last_outreach_at, evalDate) < restDays) return false;
   if (c.last_interaction_date && daysBetween(c.last_interaction_date, evalDate) < MIN_DAYS_SINCE_MET) return false;
   return true;
 }
@@ -121,8 +123,9 @@ function isDue(c: Contact, evalDate: string): boolean {
 /** Today's catch-up deck, highest priority first. Pass the briefing if it's already built. */
 export async function buildCatchUpDeck(ctx: Ctx, evalDate: string, briefing?: Briefing): Promise<CatchUpCard[]> {
   const inputs = await loadInputs(ctx, evalDate, briefing);
+  const restDays = inputs.briefing.profile?.rest_days ?? RECENT_OUTREACH_DAYS;
   return inputs.contacts
-    .filter((c) => isDue(c, evalDate))
+    .filter((c) => isDue(c, evalDate, restDays))
     .map((c) => toCard(c, reasonsFor(c, inputs, evalDate), evalDate))
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
     .slice(0, DECK_SIZE);
@@ -130,12 +133,14 @@ export async function buildCatchUpDeck(ctx: Ctx, evalDate: string, briefing?: Br
 
 // ---------- Drafts ----------
 
-const SYSTEM = `You draft short messages for Alonso, a fractional CMO, suggesting he and someone in his network meet up (coffee, lunch, or a call). Write in his voice: warm, brief, plain, specific. No sales tone, buzzwords, emojis, or subject line. Use only the facts provided: never invent shared history, personality traits, or details. If he can offer an introduction, mention it as something he'd like to talk through, without naming the other person. Never reveal private context or sensitivities. Output only the message text.`;
+function system(profile: Profile | null): string {
+  return `You draft short messages for the user, suggesting they and someone in their network meet up (coffee, lunch, or a call). ${profilePrompt(profile)} Write in their voice. Tone: ${TONE[profile?.tone ?? "warm"]}. Plain and specific: no sales tone, buzzwords, emojis, or subject line, and don't pitch the user's services. Use only the facts provided: never invent shared history, personality traits, or details. If the user can offer an introduction, mention it as something they'd like to talk through, without naming the other person. Never reveal private context or sensitivities. Output only the message text, with no signature line.`;
+}
 
 function prompt(card: CatchUpCard, c: Contact): string {
   const when = card.daysSinceMet == null ? "unknown" : `${card.daysSinceMet} days ago`;
   const label: Record<ReasonKind, string> = {
-    give: "Something Alonso can offer",
+    give: "Something the user can offer them",
     need: "Something they mentioned needing",
     news: "Recent public news about them (unverified; mention only if natural)",
     last_time: "Notes from their last conversation",
@@ -157,7 +162,7 @@ export async function getOrCreateCatchUpDraft(ctx: Ctx, contactId: string, evalD
 
   const inputs = await loadInputs(ctx, evalDate);
   const card = toCard(contact, reasonsFor(contact, inputs, evalDate), evalDate);
-  const outreach_draft = await textCall({ system: SYSTEM, user: prompt(card, contact) });
+  const outreach_draft = await textCall({ system: system(inputs.briefing.profile), user: prompt(card, contact) });
   must(await db.from("contacts").update({ outreach_draft }).eq("owner_id", ownerId).eq("id", contactId));
   return outreach_draft;
 }

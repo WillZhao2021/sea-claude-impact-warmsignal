@@ -13,7 +13,7 @@ export function draftKindFor(c: Candidate): DraftKind {
   return "ask_recipient";
 }
 
-const TONE: Record<Tone, string> = {
+export const TONE: Record<Tone, string> = {
   warm: "warm, friendly and personal",
   professional: "polished and professional, still human",
   brief: "very brief and direct; shorten to the low end of the word range",
