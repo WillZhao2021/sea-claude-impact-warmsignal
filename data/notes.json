@@ -68,5 +68,10 @@
     "contact_id": "c026",
     "date": "2026-09-20",
     "notes": "Rachel runs a recruiting firm and asked me to introduce her to as many startup CEOs as possible so she can pitch her recruiting services."
+  },
+  {
+    "contact_id": "c031",
+    "date": "2026-09-12",
+    "notes": "[DEMO - fictional] Coffee with Will in South Lake Union. He's on an AWS team in Seattle and wants to meet founders using LLMs in production for a side project on cost-efficient inference. Asked if I know anyone hiring for applied AI roles in Seattle next spring. He offered to review architecture for any startup I know that's building on AWS. Big into hackathons."
   }
 ]
