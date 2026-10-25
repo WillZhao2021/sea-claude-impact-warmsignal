@@ -1,7 +1,8 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { userDb } from "@/lib/auth";
 import { enrichAndSave, type EnrichEvent } from "@/lib/enrich";
 import { mapNetworkAndSave, type NetworkEvent } from "@/lib/network";
+import { syncContactDocuments } from "@/lib/vectors";
 
 // Streams enrichment progress as Server-Sent Events: searches, sources as each search returns,
 // Claude's partial output while it writes, the identity-gated result once saved, then how the
@@ -69,6 +70,9 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/contact
       try {
         const user = { db, ownerId };
         const enrichment = await enrichAndSave(user, id, { depth: "deep", signal: abort.signal, onEvent });
+        // The new web summary changes this contact's search document; re-embed once the stream ends.
+        // Registered before mapping so a mapping failure doesn't leave the document stale.
+        after(() => syncContactDocuments(user).catch((e) => console.error("Contact document sync failed:", e)));
         // Mapping runs even without a web match: recorded needs and offers still connect people.
         const { saved, added } = await mapNetworkAndSave(user, id, enrichment, { signal: abort.signal, onEvent });
         send({ type: "saved", intros_saved: saved, intros_added: added });
