@@ -20,6 +20,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Avatar, btn, card, Chip, formatDate, input, SignalBars } from "@/components/ui";
 import { defaultEvalDate } from "@/lib/briefing";
 import { requireCtx } from "@/lib/auth";
+import { REFRESH_AFTER_DAYS } from "@/lib/enrich";
 import { whatsappLink } from "@/lib/phonebook";
 import { must } from "@/lib/supabase";
 import type { Contact, Interaction, Signal } from "@/lib/types";
@@ -216,6 +217,11 @@ function WebProfile({ contact }: { contact: Contact }) {
   return (
     <EnrichPanel contactId={contact.id} name={contact.name} enriched={!!contact.enriched_at}>
       <EnrichmentView enrichment={contact.enrichment} name={contact.name} />
+      {contact.enriched_at && (
+        <p className="mt-4 text-xs text-slate-400">
+          Checked {contact.enriched_at.slice(0, 10)} · refreshes every {REFRESH_AFTER_DAYS} days
+        </p>
+      )}
     </EnrichPanel>
   );
 }

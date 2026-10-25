@@ -1,7 +1,8 @@
 import { tavily, type TavilySearchResponse } from "@tavily/core";
 import { z } from "zod";
 import { FAST_MODEL, structuredCall, structuredStream } from "./claude";
-import { must, type Ctx } from "./supabase";
+import { DEMO_FICTIONAL_IDS } from "./demo";
+import { must, serviceDb, type Ctx } from "./supabase";
 import type { Attribute, Contact, Enrichment } from "./types";
 
 // Automatic contact enrichment: Tavily web search -> Claude identity check + summary.
@@ -70,10 +71,42 @@ export type EnrichEvent =
  */
 export type EnrichDepth = "basic" | "deep";
 
+/** Contacts are re-enriched once their last enrichment is this old (daily cron, /api/cron/enrich). */
+export const REFRESH_AFTER_DAYS = 14;
+
+// Reputable business/tech outlets and press wires. Open news search returns a lot of SEO spam,
+// so these are preferred (not required: small companies rarely make major outlets).
+const NEWS_DOMAINS = [
+  "reuters.com",
+  "bloomberg.com",
+  "wsj.com",
+  "ft.com",
+  "cnbc.com",
+  "axios.com",
+  "techcrunch.com",
+  "theverge.com",
+  "geekwire.com",
+  "venturebeat.com",
+  "businessinsider.com",
+  "forbes.com",
+  "fiercehealthcare.com",
+  "statnews.com",
+  "businesswire.com",
+  "prnewswire.com",
+  "globenewswire.com",
+];
+
 function searchPlan(contact: Contact, depth: EnrichDepth): (SearchGroup & { options: Record<string, unknown> })[] {
   const first = contact.name.split(" ")[0];
   const co = contact.company;
-  const news = { searchDepth: "basic", topic: "news", timeRange: "year", maxResults: 5 };
+  const news = {
+    searchDepth: "basic",
+    topic: "news",
+    timeRange: "year",
+    maxResults: 5,
+    includeDomains: NEWS_DOMAINS,
+    includeDomainsMode: "prefer",
+  };
   const plan = [
     {
       id: "person",
@@ -196,7 +229,10 @@ export async function enrichAndSave(
     await supabase.from("contacts").select("*").eq("owner_id", ownerId).eq("id", contactId).single(),
   );
   // Only the final, identity-gated result is saved; partial output never reaches the database.
-  const enrichment = await enrichContact(contact, opts);
+  const fresh = await enrichContact(contact, opts);
+  // A refresh that can't confirm identity (e.g. a quiet news period) keeps the last good match.
+  const enrichment =
+    fresh.status === "no_confident_match" && contact.enrichment?.status === "matched" ? contact.enrichment : fresh;
   must(
     await supabase
       .from("contacts")
@@ -205,6 +241,41 @@ export async function enrichAndSave(
       .eq("id", contactId),
   );
   return enrichment;
+}
+
+/**
+ * Scheduled refresh across all accounts (service client; run by the cron route). Re-enriches contacts
+ * never enriched or last enriched more than REFRESH_AFTER_DAYS ago, oldest first, up to `limit` per run.
+ * Fictional demo contacts are skipped: searching them only finds namesakes.
+ * Returns the owners whose contacts changed, so the caller can re-embed their documents.
+ */
+export async function refreshStaleEnrichment(
+  opts: { limit?: number; concurrency?: number } = {},
+): Promise<{ refreshed: number; failed: number; owners: string[] }> {
+  if (!process.env.TAVILY_API_KEY) return { refreshed: 0, failed: 0, owners: [] };
+  const cutoff = new Date(Date.now() - REFRESH_AFTER_DAYS * 86_400_000).toISOString();
+  const due = must<{ id: string; owner_id: string; external_id: string | null }[]>(
+    await serviceDb()
+      .from("contacts")
+      .select("id, owner_id, external_id")
+      .or(`enriched_at.is.null,enriched_at.lt.${cutoff}`)
+      .order("enriched_at", { ascending: true, nullsFirst: true })
+      .limit(opts.limit ?? 200),
+  ).filter((c) => !c.external_id || !DEMO_FICTIONAL_IDS.has(c.external_id));
+
+  let failed = 0;
+  const size = opts.concurrency ?? 5;
+  for (let i = 0; i < due.length; i += size) {
+    await Promise.all(
+      due.slice(i, i + size).map((c) =>
+        enrichAndSave({ db: serviceDb(), ownerId: c.owner_id }, c.id).catch((e) => {
+          failed++;
+          console.error(`Enrichment refresh failed for ${c.id}:`, e);
+        }),
+      ),
+    );
+  }
+  return { refreshed: due.length - failed, failed, owners: [...new Set(due.map((c) => c.owner_id))] };
 }
 
 /** Enriches contacts that have never been enriched (or all, with force). */

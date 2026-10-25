@@ -8,6 +8,9 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login", "/signup", "/welcome"];
 
 export async function proxy(request: NextRequest) {
+  // Cron routes have no session; they authenticate with CRON_SECRET themselves.
+  if (request.nextUrl.pathname.startsWith("/api/cron/")) return NextResponse.next();
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
