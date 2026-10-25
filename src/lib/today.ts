@@ -28,10 +28,7 @@ export const FACTOR_LABELS: Record<FactorKey, string> = {
 /** Factor weights per onboarding goal. Each row sums to 1. */
 const WEIGHTS: Record<Goal, Record<FactorKey, number>> = {
   give: { give: 0.4, loop: 0.15, cooling: 0.15, timing: 0.1, fit: 0.05, ask: 0.05, relationship: 0.1 },
-  clients: { give: 0.15, loop: 0.1, cooling: 0.15, timing: 0.15, fit: 0.25, ask: 0.15, relationship: 0.05 },
-  referrals: { give: 0.2, loop: 0.1, cooling: 0.15, timing: 0.1, fit: 0.1, ask: 0.2, relationship: 0.15 },
-  winback: { give: 0.15, loop: 0.1, cooling: 0.35, timing: 0.1, fit: 0.1, ask: 0.15, relationship: 0.05 },
-  partners: { give: 0.25, loop: 0.1, cooling: 0.1, timing: 0.15, fit: 0.2, ask: 0.15, relationship: 0.05 },
+  ask: { give: 0.15, loop: 0.1, cooling: 0.15, timing: 0.1, fit: 0.2, ask: 0.25, relationship: 0.05 },
 };
 
 const DEFAULT_PER_DAY = 5;
@@ -181,7 +178,7 @@ function assess(
   }
 
   factors.relationship = c.relationship_strength / 5;
-  if (profile?.goal === "referrals" && c.relationship_strength >= 4 && !factors.ask) {
+  if (profile?.goal === "ask" && c.relationship_strength >= 4 && !factors.ask) {
     reasons.push({ kind: "relationship", title: `Close relationship (${c.relationship_strength}/5)`, detail: "A natural person to ask who else you should meet." });
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Briefcase, Check, Gift, Handshake, LoaderCircle, Quote, Repeat, Users } from "lucide-react";
+import { Check, Gift, Handshake, LoaderCircle, Quote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { saveAnswersAction } from "@/app/onboarding/actions";
@@ -11,7 +11,7 @@ import { GOALS, INDUSTRIES, OFFERS, profilePrompt, REVENUE, ROLES, type Profile,
 // The "Me" editor: every onboarding answer on one page, saved together. Reuses onboarding's
 // controls and its validated save action, so both places stay in step.
 
-const GOAL_ICONS = { give: Gift, clients: Briefcase, referrals: Handshake, winback: Repeat, partners: Users } as const;
+const GOAL_ICONS = { give: Gift, ask: Handshake } as const;
 const FIELDS = [
   "full_name",
   "offers",

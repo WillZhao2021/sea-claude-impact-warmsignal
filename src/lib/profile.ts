@@ -18,13 +18,17 @@ export const OFFERS = [
   ["creative", "Design & creative"],
 ] as const;
 
+// Two moves: make an introduction (give), or ask for a meeting or an introduction (ask).
 export const GOALS = [
-  { id: "give", name: "Give first: make intros", sub: "Help people in your network meet each other" },
-  { id: "clients", name: "Find new clients", sub: "People who need what you offer or match your ideal client" },
-  { id: "referrals", name: "Get referrals", sub: "Warm contacts who can introduce you to others" },
-  { id: "winback", name: "Win back past clients", sub: "Past clients and relationships that went quiet" },
-  { id: "partners", name: "Find partners", sub: "People who serve the same clients you do" },
+  { id: "give", name: "Make intros", sub: "Connect people in your network who should meet" },
+  { id: "ask", name: "Ask for meetings and intros", sub: "Reach people who can help you, directly or through someone you know" },
 ] as const;
+
+/**
+ * Goals from before there were only two moves. They're read as "ask", and "referrals" is also what
+ * "ask" is stored as until the migration allowing "ask" is applied (saveProfile).
+ */
+const LEGACY_ASK_GOALS = new Set(["clients", "referrals", "winback", "partners"]);
 
 export const INDUSTRIES = [
   "Software / SaaS",
@@ -97,15 +101,17 @@ export const DEFAULT_PROFILE: Profile = {
 export async function getProfile(ctx: Ctx): Promise<Profile | null> {
   const { data, error } = await ctx.db.from("profiles").select("*").eq("owner_id", ctx.ownerId).maybeSingle();
   if (error) throw new Error(error.message);
-  return data as Profile | null;
+  const p = data as (Omit<Profile, "goal"> & { goal: string | null }) | null;
+  return p && { ...p, goal: p.goal && LEGACY_ASK_GOALS.has(p.goal) ? "ask" : (p.goal as Profile["goal"]) };
 }
 
 export async function saveProfile(ctx: Ctx, patch: Partial<Profile>): Promise<void> {
-  must(
-    await ctx.db
-      .from("profiles")
-      .upsert({ ...patch, owner_id: ctx.ownerId, updated_at: new Date().toISOString() }, { onConflict: "owner_id" }),
-  );
+  const upsert = (p: Record<string, unknown>) =>
+    ctx.db.from("profiles").upsert({ ...p, owner_id: ctx.ownerId, updated_at: new Date().toISOString() }, { onConflict: "owner_id" });
+  let res = await upsert(patch);
+  // Until migration 20261026050000 allows "ask", store it as the legacy "referrals" (read back as "ask").
+  if (res.error && patch.goal === "ask" && /goal/.test(res.error.message)) res = await upsert({ ...patch, goal: "referrals" });
+  must(res);
 }
 
 /** "Fractional CMO for B2B service firms", or the picked categories, or a neutral fallback. */

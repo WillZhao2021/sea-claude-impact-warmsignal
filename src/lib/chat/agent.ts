@@ -42,7 +42,7 @@ const ONBOARDING = `${COMMON}
 
 This is the one-time setup conversation. One step per message:
 1. Greet them; ask their name and what they do in a sentence. Save name and offer_line.
-2. Ask their main goal with ask_choices: "Give first: make intros", "Find new clients", "Get referrals", "Win back past clients", "Find partners". Save it.
+2. Ask what they mainly want to do with their network, with ask_choices: "Make intros" (connect people who should meet) or "Ask for meetings and intros" (reach people who can help them). Save goal "give" or "ask".
 3. Ask who their ideal clients or most valuable contacts are (industries, roles). Save what fits the lists.
 4. Ask for LinkedIn connections: request_upload kind "linkedin". They can skip.
 5. Ask for phone contacts so they can message people on WhatsApp: request_upload kind "phone". They can skip.
