@@ -174,6 +174,54 @@ export async function shouldOpen(ctx: Ctx, mode: ChatMode): Promise<boolean> {
   return !last || Date.now() - Date.parse(last.created_at) > REOPEN_AFTER_MS;
 }
 
+// ---------- history repair ----------
+
+type Block = Exclude<Anthropic.MessageParam["content"], string>[number];
+const interrupted = (id: string): Block => ({
+  type: "tool_result",
+  tool_use_id: id,
+  content: "Interrupted before it finished.",
+  is_error: true,
+});
+
+/**
+ * Makes stored history valid to replay. A turn cut off midway (the user left during a web lookup,
+ * or the platform stopped the function) can leave a tool call without its result, a result without
+ * its call, or two messages from the same side in a row. The API rejects all of these, which would
+ * break the chat on every later turn, so they are repaired here (in memory; storage is append-only).
+ */
+export function repairHistory(input: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  const out: { role: "user" | "assistant"; content: Block[] }[] = [];
+  let pending: string[] = []; // tool_use ids from the last assistant message, awaiting results
+  for (const m of input) {
+    if (m.role !== "user" && m.role !== "assistant") continue; // the chat never stores system messages
+    let content = (typeof m.content === "string" ? [{ type: "text", text: m.content } as Block] : m.content).filter(
+      (b) => !(b.type === "text" && !b.text.trim()),
+    );
+    if (m.role === "user") {
+      // Keep only results for the calls just made (results first), and answer any that were lost.
+      const results = content.filter((b) => b.type === "tool_result" && pending.includes(b.tool_use_id));
+      const answered = new Set(results.map((b) => (b as Anthropic.ToolResultBlockParam).tool_use_id));
+      content = [...results, ...pending.filter((id) => !answered.has(id)).map(interrupted), ...content.filter((b) => b.type !== "tool_result")];
+      pending = [];
+    } else {
+      // An assistant message after unanswered calls: answer them first.
+      if (pending.length) out.push({ role: "user", content: pending.map(interrupted) });
+      pending = content.flatMap((b) => (b.type === "tool_use" ? [b.id] : []));
+    }
+    if (!content.length) continue;
+    const last = out.at(-1);
+    if (last?.role === m.role) {
+      // Same side twice in a row: merge (tool results stay first in a user message).
+      const all = [...last.content, ...content];
+      last.content = m.role === "user" ? [...all.filter((b) => b.type === "tool_result"), ...all.filter((b) => b.type !== "tool_result")] : all;
+    } else out.push({ role: m.role, content });
+  }
+  if (pending.length) out.push({ role: "user", content: pending.map(interrupted) });
+  while (out[0]?.role === "assistant") out.shift();
+  return out;
+}
+
 // ---------- the turn ----------
 
 /** Runs one user turn: streams text and cards through `emit`, storing every message as it completes. */
@@ -187,16 +235,29 @@ export async function runChatTurn(
 ) {
   const [past, state] = await Promise.all([history(ctx, mode), loadState(ctx)]);
   await store(ctx, mode, "user", userText);
-  const messages: Anthropic.MessageParam[] = [...past.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: userText }];
+  let messages = repairHistory([...past.map((m) => ({ role: m.role, content: m.content })), { role: "user", content: userText }]);
   const tools = TOOLS.filter((t) => TOOL_NAMES[mode].has(t.name));
-
-  for (let step = 0; step < MAX_STEPS; step++) {
+  const call = () => {
     const stream = client.messages.stream(
       { model: CHAT_MODEL, max_tokens: 2048, system: SYSTEMS[mode] + stateLine(state), tools, messages },
       { signal },
     );
     stream.on("text", (delta) => emit({ type: "text", delta }));
-    const message = await stream.finalMessage();
+    return stream.finalMessage();
+  };
+
+  for (let step = 0; step < MAX_STEPS; step++) {
+    let message: Anthropic.Message;
+    try {
+      message = await call();
+    } catch (e) {
+      // Last resort: if the API still rejects the history, answer from a fresh context rather
+      // than failing this (and every later) turn.
+      if (!(e instanceof Anthropic.BadRequestError) || step > 0) throw e;
+      console.error("Chat history rejected; continuing with a fresh context:", e.message);
+      messages = [{ role: "user", content: userText }];
+      message = await call();
+    }
     await store(ctx, mode, "assistant", message.content);
     messages.push({ role: "assistant", content: message.content });
 
