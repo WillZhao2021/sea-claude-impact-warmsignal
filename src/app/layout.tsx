@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
-import { CircleUser, Coffee, House, LogOut, Users } from "lucide-react";
+import { CircleUser, Coffee, House, LogOut, MessageCircle, Users } from "lucide-react";
 import { signOutAction } from "@/app/actions";
 import { AddContactModal } from "@/components/add-contact-modal";
 import { NavLink } from "@/components/nav-link";
@@ -31,6 +31,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 function AppShell({ email, children }: { email: string; children: React.ReactNode }) {
   const nav = (
     <>
+      <NavLink href="/chat">
+        <MessageCircle className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Chat</span>
+      </NavLink>
       <NavLink href="/">
         <House className="size-5" strokeWidth={1.75} /> <span className="max-sm:sr-only">Today</span>
       </NavLink>

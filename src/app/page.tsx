@@ -58,7 +58,8 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
   const { date } = await searchParams;
   const evalDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : defaultEvalDate();
   const ctx = await requireCtx();
-  if (!(await getProfile(ctx))?.onboarded_at) redirect("/onboarding");
+  // Setup happens in the chat (one time); Today needs a profile to rank against.
+  if (!(await getProfile(ctx))?.onboarded_at) redirect("/chat");
   const { count: contactCount } = await ctx.db
     .from("contacts")
     .select("id", { count: "exact", head: true })
