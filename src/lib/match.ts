@@ -4,10 +4,12 @@ import { getProfile, profilePrompt } from "./profile";
 import { must, type Ctx } from "./supabase";
 import { enrichmentLine } from "./enrich";
 import type { Contact, Signal } from "./types";
+import { candidatesFor, RETRIEVAL_THRESHOLD, syncContactDocuments } from "./vectors";
 
 // Stages B + C (PRD §8): candidate generation and match validation.
-// With a network of tens of contacts, Claude sees the whole directory and proposes
-// candidates for a batch of needs; code then validates ids and stores the assessments.
+// Claude sees the directory and proposes candidates for a batch of needs; code then validates ids
+// and stores the assessments. Above RETRIEVAL_THRESHOLD contacts the directory is narrowed per batch
+// by keyword + semantic retrieval (vectors.ts).
 // Final priority scores are computed deterministically in scoring.ts.
 
 export const MatchSchema = z.object({
@@ -85,8 +87,8 @@ export async function findIntroductions(ctx: Ctx): Promise<{ needs: number; matc
   const offerRefBySignal = new Map([...offerRef].map(([ref, s]) => [s.id, ref]));
 
   // Directory: every contact with their recorded offers and sensitivities.
-  const directory = [...contactRef]
-    .map(([ref, c]) => {
+  const entryById = new Map(
+    [...contactRef].map(([ref, c]) => {
       const theirOffers = offers.filter((o) => o.contact_id === c.id);
       const sensitivities = signals
         .filter((s) => s.contact_id === c.id)
@@ -96,20 +98,45 @@ export async function findIntroductions(ctx: Ctx): Promise<{ needs: number; matc
       for (const u of new Set(sensitivities)) lines.push(`  note: ${u}`);
       const web = enrichmentLine(c.enrichment);
       if (web) lines.push(`  ${web}`);
-      return lines.join("\n");
-    })
-    .join("\n");
+      return [c.id, lines.join("\n")];
+    }),
+  );
+  const directoryOf = (ids?: Set<string>) =>
+    contacts
+      .filter((c) => !ids || ids.has(c.id))
+      .map((c) => entryById.get(c.id)!)
+      .join("\n");
 
   const entries = [...needRef];
   const batches: (typeof entries)[] = [];
   for (let i = 0; i < entries.length; i += 6) batches.push(entries.slice(i, i + 6));
 
+  // Large networks: each batch sees only its recipients plus the best candidates per need
+  // (vectors.ts), not the whole directory. Refs stay global, so validation below is unchanged.
+  // Documents are synced on every run so profile fit stays current; matching works without them.
+  const synced = await syncContactDocuments(ctx).then(
+    () => true,
+    (e) => (console.error("Contact document sync failed:", e), false),
+  );
+  const shortlists =
+    synced && contacts.length > RETRIEVAL_THRESHOLD
+      ? await Promise.all(
+          batches.map(async (batch) => {
+            const lists = await candidatesFor(
+              ctx,
+              batch.map(([, s]) => ({ text: `${s.category}: ${s.description}. ${s.supporting_text}`, exclude: [s.contact_id] })),
+            );
+            return new Set([...lists.flat(), ...batch.map(([, s]) => s.contact_id)]);
+          }),
+        ).catch((e) => (console.error("Retrieval failed; using the full directory:", e), null))
+      : null;
+
   const results = await Promise.all(
-    batches.map((batch) =>
+    batches.map((batch, b) =>
       structuredCall({
         system,
         user: `<network>
-${directory}
+${directoryOf(shortlists?.[b])}
 </network>
 
 Find introductions for these needs:

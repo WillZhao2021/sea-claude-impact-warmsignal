@@ -12,8 +12,9 @@ import { ensureDrafts } from "@/lib/draft";
 import { enrichAndSave, enrichPending } from "@/lib/enrich";
 import { ingestNote } from "@/lib/extract";
 import { findIntroductions } from "@/lib/match";
-import { must, serviceCtx, serviceDb } from "@/lib/supabase";
+import { must, serviceCtx, serviceDb, type Ctx } from "@/lib/supabase";
 import type { Opportunity } from "@/lib/types";
+import { syncContactDocuments } from "@/lib/vectors";
 
 // Every action resolves the signed-in user first (requireCtx redirects to /login otherwise),
 // and all reads/writes go through their RLS-scoped client. Background work after the
@@ -89,6 +90,13 @@ export async function removeDemoAction() {
 
 // ---------- Contacts & notes ----------
 
+/**
+ * Re-embeds changed contact documents after the response (vectors.ts). Uses the user's own client:
+ * the embed function requires their session. Failures only delay retrieval and fit, so they're logged.
+ */
+const syncDocuments = (ctx: Ctx) =>
+  syncContactDocuments(ctx).catch((e) => console.error("Contact document sync failed:", e));
+
 export async function addNoteAction(formData: FormData) {
   const ctx = await requireCtx();
   const contactId = String(formData.get("contact_id"));
@@ -96,6 +104,7 @@ export async function addNoteAction(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim();
   if (!notes) throw new Error("Note is empty");
   await ingestNote(ctx, contactId, date, notes);
+  after(() => syncDocuments(ctx));
   revalidatePath(`/contacts/${contactId}`);
 }
 
@@ -106,7 +115,7 @@ export async function importCsvAction(formData: FormData) {
   await importContactsCsv(ctx, await file.text());
   // Enrich new contacts from the web in the background, after the response is sent.
   const bg = serviceCtx(ctx.ownerId);
-  after(() => enrichPending(bg));
+  after(() => enrichPending(bg).finally(() => syncDocuments(ctx)));
   revalidatePath("/contacts");
 }
 
@@ -147,7 +156,11 @@ export async function createContactAction(_prev: CreateContactState, formData: F
     }
   }
   const bg = serviceCtx(ctx.ownerId);
-  after(() => enrichAndSave(bg, id).catch((e) => console.error(`Enrichment failed for ${id}:`, e)));
+  after(() =>
+    enrichAndSave(bg, id)
+      .catch((e) => console.error(`Enrichment failed for ${id}:`, e))
+      .finally(() => syncDocuments(ctx)),
+  );
   revalidatePath("/contacts");
   redirect(`/contacts/${id}`);
 }
