@@ -191,9 +191,16 @@ export async function findIntroductionsStepAction(): Promise<void> {
   await findIntroductions(ctx);
 }
 
-export async function draftMessagesStepAction(): Promise<void> {
+/** Drafting is a nice-to-have at setup: if Claude is unavailable, Today writes drafts on first view instead. */
+export async function draftMessagesStepAction(): Promise<{ ok: boolean }> {
   const ctx = await requireCtx();
-  await ensureDrafts(ctx, defaultEvalDate());
+  try {
+    await ensureDrafts(ctx, defaultEvalDate());
+    return { ok: true };
+  } catch (e) {
+    console.error("Onboarding drafting skipped:", e);
+    return { ok: false };
+  }
 }
 
 export async function loadDemoNetworkAction(): Promise<{ contacts: number }> {

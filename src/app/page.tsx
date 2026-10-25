@@ -59,7 +59,7 @@ export default async function BriefingPage({ searchParams }: PageProps<"/">) {
   const { date } = await searchParams;
   const evalDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : defaultEvalDate();
   const ctx = await requireCtx();
-  // Setup is a one-time conversation (/onboarding); Today needs a profile to rank against.
+  // Setup is the onboarding wizard (/onboarding); Today needs a profile to rank against.
   if (!(await getProfile(ctx))?.onboarded_at) redirect("/onboarding");
   const { count: contactCount } = await ctx.db
     .from("contacts")
