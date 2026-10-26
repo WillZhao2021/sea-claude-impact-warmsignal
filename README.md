@@ -31,8 +31,6 @@ No demo data of your own? Click **Load demo contacts** to explore a ready-made 3
 
 ## Developer notes
 
-**Be the person who always has something valuable to give.**
-
 A relationship-intelligence briefing for Alonso (fractional CMO). Conversation notes go in; Claude extracts needs and offers with evidence; Daily Networker proposes introductions and scores them deterministically. Each morning it shows up to five opportunities to give.
 
 ```
