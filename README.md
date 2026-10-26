@@ -1,5 +1,36 @@
 # Daily Networker
 
+**Be the person who always has something valuable to give.** Daily Networker turns a small business owner's network into a daily, two-minute habit: it tells you who to talk to today and why, drafts the message, and helps you either **make an intro** (give) or **ask for a meeting or an intro** (ask). Referrals follow from giving first.
+
+## Try it now (no code, about 5 minutes)
+1. Open **https://warmsignal-wheat.vercel.app** and sign up. Ask the team for the pilot invite code.
+2. **Setup** (step-by-step): your name, what you offer, your goal (make intros or ask for intros), and your ideal clients.
+3. **Upload contacts.** Use LinkedIn's official export (Settings → Data privacy → Get a copy of your data → Connections → upload `Connections.csv`), or any CSV. Optionally add an iPhone/Google address book (`.vcf` or Google CSV) to get WhatsApp buttons.
+4. Open **Today**: up to 5 people to talk to, the reason for each, and a drafted message. Send it yourself through WhatsApp, email or LinkedIn.
+5. Open **Chat**: it asks about people with missing information ("How do you know Will?"). Answer by tapping, typing, or the 🎙️ mic, and it looks people up on the web for you.
+
+No demo data of your own? Click **Load demo contacts** to explore a ready-made 35-person network.
+
+## Who it helps, and how
+- **Who:** consultants, fractional executives, agencies, and any owner whose new business comes from referrals and warm intros.
+- **The problem:** the network lives in their head and in LinkedIn. Follow-ups slip, and "let's stay in touch" never happens.
+- **What changes:** instead of a CRM nobody updates, the owner gets a ranked daily list with reasons and drafts. Notes go in by voice in seconds, and the app keeps profiles fresh from the public web every two weeks.
+
+## What's different
+- **Give before you ask.** It finds introductions you can make (matching one contact's need to another's offer, with evidence quotes) and paces your asks behind your gives.
+- **Explainable ranking.** Claude assesses, and code scores deterministically. Every card shows why the person is there.
+- **Enrichment by conversation.** The chat asks you the one question that most improves your data. Voice notes are dictated in the browser, and no audio is stored.
+- **Privacy by design.** Phone numbers and emails never go to Claude or the web search, and nothing is sent automatically. See `docs/data-contract.md`.
+
+## Team
+- **Will Zhao** ([@WillZhao2021](https://github.com/WillZhao2021)): product and core app. Notes → needs/offers extraction, intro matching and scoring, Today and Keep-warm ranking, Give/Ask moves, onboarding wizard, auth, vector search, landing page.
+- **Mark** ([@MarkUnivWash](https://github.com/MarkUnivWash)): chat assistant (Haiku + tools, gap review, batch enrichment), voice notes, phone/email import and WhatsApp links, 14-day Tavily refresh, per-stage models (Haiku), the data contract, rename to Daily Networker.
+- We worked through PRs on one repo, rebasing on each other's changes. See the merged PRs for who built what.
+
+---
+
+## Developer notes
+
 **Be the person who always has something valuable to give.**
 
 A relationship-intelligence briefing for Alonso (fractional CMO). Conversation notes go in; Claude extracts needs and offers with evidence; Daily Networker proposes introductions and scores them deterministically. Each morning it shows up to five opportunities to give.
